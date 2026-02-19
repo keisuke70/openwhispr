@@ -50,8 +50,19 @@ function getDownloadUrl(archiveName) {
 
 function extractTarBz2(archivePath, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
-  // tar is available on Windows 10+ and all Unix systems
-  execSync(`tar -xjf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
+  // On Windows, convert paths to forward slashes to avoid tar interpreting
+  // drive letters (e.g. C:) as remote host prefixes
+  const archiveArg =
+    process.platform === "win32"
+      ? archivePath.replace(/\\/g, "/")
+      : archivePath;
+  const destArg =
+    process.platform === "win32" ? destDir.replace(/\\/g, "/") : destDir;
+  // --force-local prevents tar from interpreting colons in paths as remote hosts
+  const forceLocal = process.platform === "win32" ? " --force-local" : "";
+  execSync(`tar -xjf "${archiveArg}" -C "${destArg}"${forceLocal}`, {
+    stdio: "inherit",
+  });
 }
 
 function findLibrariesInDir(dir, pattern, maxDepth = 5, currentDepth = 0) {
