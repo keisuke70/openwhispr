@@ -62,23 +62,6 @@ class OpenAIRealtimeStreaming {
 
       this.ws.on("open", () => {
         debugLogger.debug("OpenAI Realtime WebSocket opened");
-        this.ws.send(
-          JSON.stringify({
-            type: "transcription_session.update",
-            session: {
-              input_audio_format: "pcm16",
-              input_audio_transcription: {
-                model: this.model,
-              },
-              turn_detection: {
-                type: "server_vad",
-                threshold: 0.5,
-                silence_duration_ms: 800,
-                prefix_padding_ms: 300,
-              },
-            },
-          })
-        );
       });
 
       this.ws.on("message", (data) => {
@@ -124,13 +107,35 @@ class OpenAIRealtimeStreaming {
       const event = JSON.parse(data.toString());
 
       switch (event.type) {
-        case "transcription_session.created":
+        case "transcription_session.created": {
+          debugLogger.debug("OpenAI Realtime session created, sending configuration", {
+            model: this.model,
+          });
+          this.ws.send(
+            JSON.stringify({
+              type: "transcription_session.update",
+              session: {
+                input_audio_format: "pcm16",
+                input_audio_transcription: {
+                  model: this.model,
+                },
+                turn_detection: {
+                  type: "server_vad",
+                  threshold: 0.5,
+                  silence_duration_ms: 800,
+                  prefix_padding_ms: 300,
+                },
+              },
+            })
+          );
+          break;
+        }
+
         case "transcription_session.updated": {
           if (this.pendingResolve) {
             this.isConnected = true;
             clearTimeout(this.connectionTimeout);
-            debugLogger.debug("OpenAI Realtime session ready", {
-              type: event.type,
+            debugLogger.debug("OpenAI Realtime session configured", {
               model: this.model,
             });
             this.pendingResolve();
