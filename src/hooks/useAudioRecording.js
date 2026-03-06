@@ -33,6 +33,9 @@ export const useAudioRecording = (toast, options = {}) => {
 
       if (didStart) {
         void playStartCue();
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.pauseMediaPlayback?.();
+        }
       }
 
       return didStart;
@@ -87,11 +90,18 @@ export const useAudioRecording = (toast, options = {}) => {
           variant: "destructive",
           duration: error.code === "AUTH_EXPIRED" ? 8000 : undefined,
         });
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.resumeMediaPlayback?.();
+        }
       },
       onPartialTranscript: (text) => {
         setPartialTranscript(text);
       },
       onTranscriptionComplete: async (result) => {
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.resumeMediaPlayback?.();
+        }
+
         if (result.success) {
           const transcribedText = result.text?.trim();
 
@@ -117,7 +127,7 @@ export const useAudioRecording = (toast, options = {}) => {
             "streaming"
           );
 
-          audioManagerRef.current.saveTranscription(result.text);
+          audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text);
 
           if (result.source === "openai" && getSettings().useLocalWhisper) {
             toast({
@@ -223,6 +233,9 @@ export const useAudioRecording = (toast, options = {}) => {
   const cancelRecording = async () => {
     if (audioManagerRef.current) {
       const state = audioManagerRef.current.getState();
+      if (getSettings().pauseMediaOnDictation) {
+        window.electronAPI?.resumeMediaPlayback?.();
+      }
       if (state.isStreaming) {
         return await audioManagerRef.current.stopStreamingRecording();
       }

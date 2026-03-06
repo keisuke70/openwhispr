@@ -29,6 +29,33 @@ class DatabaseManager {
         )
       `);
 
+      // Audio retention columns
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN raw_text TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN has_audio INTEGER NOT NULL DEFAULT 0");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN audio_duration_ms INTEGER");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN provider TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE transcriptions ADD COLUMN model TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS custom_dictionary (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -196,13 +223,13 @@ class DatabaseManager {
     }
   }
 
-  saveTranscription(text) {
+  saveTranscription(text, rawText = null) {
     try {
       if (!this.db) {
         throw new Error("Database not initialized");
       }
-      const stmt = this.db.prepare("INSERT INTO transcriptions (text) VALUES (?)");
-      const result = stmt.run(text);
+      const stmt = this.db.prepare("INSERT INTO transcriptions (text, raw_text) VALUES (?, ?)");
+      const result = stmt.run(text, rawText);
 
       const fetchStmt = this.db.prepare("SELECT * FROM transcriptions WHERE id = ?");
       const transcription = fetchStmt.get(result.lastInsertRowid);
@@ -252,6 +279,61 @@ class DatabaseManager {
       return { success: result.changes > 0, id };
     } catch (error) {
       debugLogger.error("Error deleting transcription", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  updateTranscriptionAudio(id, { hasAudio, audioDurationMs, provider, model }) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const stmt = this.db.prepare(
+        "UPDATE transcriptions SET has_audio = ?, audio_duration_ms = ?, provider = ?, model = ? WHERE id = ?"
+      );
+      stmt.run(hasAudio, audioDurationMs, provider, model, id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error updating transcription audio", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  updateTranscriptionText(id, text, rawText) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const stmt = this.db.prepare("UPDATE transcriptions SET text = ?, raw_text = ? WHERE id = ?");
+      stmt.run(text, rawText, id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error updating transcription text", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  getTranscriptionById(id) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const stmt = this.db.prepare("SELECT * FROM transcriptions WHERE id = ?");
+      return stmt.get(id) || null;
+    } catch (error) {
+      debugLogger.error("Error getting transcription by id", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  clearAudioFlags(ids) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      if (!ids || ids.length === 0) return { success: true };
+      const transaction = this.db.transaction((idList) => {
+        const stmt = this.db.prepare("UPDATE transcriptions SET has_audio = 0 WHERE id = ?");
+        for (const id of idList) {
+          stmt.run(id);
+        }
+      });
+      transaction(ids);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error clearing audio flags", { error: error.message }, "database");
       throw error;
     }
   }

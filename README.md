@@ -721,7 +721,7 @@ OpenWhispr is designed with privacy and security in mind:
 ## FAQ
 
 **Q: Is OpenWhispr really free?**
-A: Yes! OpenWhispr is open source and free to use. The free plan includes 2,000 words/week of cloud transcription, and local processing is completely free with no limits. Pro plan ($9/month) offers unlimited cloud transcription.
+A: Yes! OpenWhispr is open source and free to use. The free plan includes 2,000 words/week of cloud transcription, and local processing is completely free with no limits. Paid plans start from as little as $8/month.
 
 **Q: Which processing method should I use?**
 A: Use local processing for privacy and offline use. Use cloud processing for speed and convenience.
@@ -765,4 +765,5 @@ OpenWhispr is actively maintained and ready for production use. Current version:
 - **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework
 - **[React](https://react.dev/)** - UI component library
 - **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful UI components built on Radix primitives
+- **[Hugging Face](https://huggingface.co/)** - Model hosting platform for our local speech recognition and language models
 - **[llama.cpp](https://github.com/ggerganov/llama.cpp)** - Local LLM inference for AI-powered text processing

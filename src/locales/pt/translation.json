@@ -1050,6 +1050,8 @@
       "soundEffects": {
         "dictationSounds": "Sons de ditado",
         "dictationSoundsDescription": "Tocar um som ao iniciar e parar a gravação",
+        "pauseMedia": "Pausar mídia",
+        "pauseMediaDescription": "Pausar a música automaticamente ao iniciar o ditado",
         "title": "Efeitos sonoros"
       },
       "startup": {
@@ -1247,7 +1249,7 @@
     "updatePayment": "Atualizar forma de pagamento",
     "updatePaymentDescription": "Volte às transcrições ilimitadas do Pro.",
     "upgradeToPro": "Fazer upgrade para Pro",
-    "upgradeDescription": "Transcrições ilimitadas. $9/mês.",
+    "upgradeDescription": "Transcrições ilimitadas a partir de apenas $8/mês.",
     "useApiKey": "Use sua própria chave API",
     "useApiKeyDescription": "Traga sua própria chave para uso ilimitado.",
     "switchToLocal": "Mudar para local",

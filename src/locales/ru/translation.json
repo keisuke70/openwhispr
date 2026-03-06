@@ -93,7 +93,7 @@
     "updatePayment": "Обновить способ оплаты",
     "updatePaymentDescription": "Вернитесь к безлимитным Pro-транскрипциям.",
     "upgradeToPro": "Перейти на Pro",
-    "upgradeDescription": "Безлимитные транскрипции. $9/мес.",
+    "upgradeDescription": "Безлимитные транскрипции от $8/мес.",
     "useApiKey": "Использовать свой API-ключ",
     "useApiKeyDescription": "Свой ключ — без ограничений.",
     "switchToLocal": "Перейти на локальный режим",
@@ -1078,6 +1078,8 @@
       "soundEffects": {
         "dictationSounds": "Звуки диктовки",
         "dictationSoundsDescription": "Воспроизводить звуковой сигнал при начале и окончании записи",
+        "pauseMedia": "Пауза медиа",
+        "pauseMediaDescription": "Автоматически приостанавливать музыку при начале диктовки",
         "title": "Звуковые эффекты"
       },
       "startup": {

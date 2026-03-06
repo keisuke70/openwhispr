@@ -54,11 +54,14 @@ const BOOLEAN_SETTINGS = new Set([
   "cloudBackupEnabled",
   "telemetryEnabled",
   "audioCuesEnabled",
+  "pauseMediaOnDictation",
   "floatingIconAutoHide",
   "isSignedIn",
 ]);
 
 const ARRAY_SETTINGS = new Set(["customDictionary"]);
+
+const NUMERIC_SETTINGS = new Set(["audioRetentionDays"]);
 
 const LANGUAGE_MIGRATIONS: Record<string, string> = { zh: "zh-CN" };
 
@@ -83,6 +86,7 @@ export interface SettingsState
     ThemeSettings {
   isSignedIn: boolean;
   audioCuesEnabled: boolean;
+  pauseMediaOnDictation: boolean;
   floatingIconAutoHide: boolean;
 
   setUseLocalWhisper: (value: boolean) => void;
@@ -123,7 +127,9 @@ export interface SettingsState
   setTheme: (value: "light" | "dark" | "auto") => void;
   setCloudBackupEnabled: (value: boolean) => void;
   setTelemetryEnabled: (value: boolean) => void;
+  setAudioRetentionDays: (days: number) => void;
   setAudioCuesEnabled: (value: boolean) => void;
+  setPauseMediaOnDictation: (value: boolean) => void;
   setFloatingIconAutoHide: (enabled: boolean) => void;
   setIsSignedIn: (value: boolean) => void;
 
@@ -234,7 +240,15 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   cloudBackupEnabled: readBoolean("cloudBackupEnabled", false),
   telemetryEnabled: readBoolean("telemetryEnabled", false),
+  audioRetentionDays: (() => {
+    if (!isBrowser) return 30;
+    const stored = localStorage.getItem("audioRetentionDays");
+    if (stored === null) return 30;
+    const parsed = parseInt(stored, 10);
+    return isNaN(parsed) ? 30 : parsed;
+  })(),
   audioCuesEnabled: readBoolean("audioCuesEnabled", true),
+  pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", false),
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
   isSignedIn: readBoolean("isSignedIn", false),
 
@@ -358,7 +372,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   setCloudBackupEnabled: createBooleanSetter("cloudBackupEnabled"),
   setTelemetryEnabled: createBooleanSetter("telemetryEnabled"),
+  setAudioRetentionDays: (days: number) => {
+    if (isBrowser) localStorage.setItem("audioRetentionDays", String(days));
+    set({ audioRetentionDays: days });
+  },
   setAudioCuesEnabled: createBooleanSetter("audioCuesEnabled"),
+  setPauseMediaOnDictation: createBooleanSetter("pauseMediaOnDictation"),
 
   setFloatingIconAutoHide: (enabled: boolean) => {
     if (get().floatingIconAutoHide === enabled) return;
@@ -601,6 +620,9 @@ export async function initializeSettings(): Promise<void> {
       } catch {
         value = [];
       }
+    } else if (NUMERIC_SETTINGS.has(key)) {
+      const parsed = parseInt(newValue, 10);
+      value = isNaN(parsed) ? 30 : parsed;
     } else {
       value = newValue;
     }

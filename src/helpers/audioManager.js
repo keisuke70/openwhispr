@@ -98,6 +98,8 @@ class AudioManager {
     this.skipReasoning = false;
     this.context = "dictation";
     this.sttConfig = null;
+    this.lastAudioBlob = null;
+    this.lastAudioMetadata = null;
   }
 
   getWorkletBlobUrl() {
@@ -323,6 +325,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.onStateChange?.({ isRecording: false, isProcessing: true });
 
         const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType });
+        this.lastAudioBlob = audioBlob;
 
         logger.info(
           "Recording stopped",
@@ -477,6 +480,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return;
       }
 
+      this.lastAudioMetadata = {
+        durationMs: metadata?.durationSeconds
+          ? Math.round(metadata.durationSeconds * 1000)
+          : Math.round(performance.now() - pipelineStart),
+        provider: result?.source || (useLocalWhisper ? localProvider : "cloud"),
+        model: activeModel || null,
+      };
+
       this.onTranscriptionComplete?.(result);
 
       if (result?.source === "openwhispr") {
@@ -576,12 +587,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       if (result.success && result.text) {
+        const rawText = result.text;
         const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "local");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, source: "local", timings };
+          return { success: true, text: text || result.text, rawText, source: "local", timings };
         } else {
           throw new Error("No text transcribed");
         }
@@ -649,12 +661,19 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
 
       if (result.success && result.text) {
+        const rawText = result.text;
         const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "local-parakeet");
         timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, source: "local-parakeet", timings };
+          return {
+            success: true,
+            text: text || result.text,
+            rawText,
+            source: "local-parakeet",
+            timings,
+          };
         } else {
           throw new Error("No text transcribed");
         }
@@ -1215,6 +1234,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     timings.transcriptionProcessingDurationMs = Math.round(performance.now() - transcriptionStart);
 
     // Process with reasoning if enabled
+    const rawText = result.text;
     let processedText = result.text;
     if (settings.useReasoningModel && processedText && !this.skipReasoning) {
       const reasoningStart = performance.now();
@@ -1268,6 +1288,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return {
       success: true,
       text: processedText,
+      rawText,
       source: "openwhispr",
       timings,
       limitReached: result.limitReached,
@@ -1420,12 +1441,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
         if (proxyText && proxyText.trim().length > 0) {
           timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+          const rawText = proxyText;
           const reasoningStart = performance.now();
           const text = await this.processTranscription(proxyText, "mistral");
           timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
           const source = (await this.isReasoningAvailable()) ? "mistral-reasoned" : "mistral";
-          return { success: true, text, source, timings };
+          return { success: true, text, rawText, source, timings };
         }
 
         throw new Error("No text transcribed - Mistral response was empty");
@@ -1554,6 +1576,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Check for text - handle both empty string and missing field
       if (result.text && result.text.trim().length > 0) {
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+        const rawText = result.text;
 
         const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "openai");
@@ -1571,7 +1594,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           },
           "transcription"
         );
-        return { success: true, text, source, timings };
+        return { success: true, text, rawText, source, timings };
       } else {
         // Log at info level so it shows without debug mode
         logger.info(
@@ -1810,9 +1833,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
   }
 
-  async saveTranscription(text) {
+  async saveTranscription(text, rawText = null) {
     try {
-      await window.electronAPI.saveTranscription(text);
+      const result = await window.electronAPI.saveTranscription(text, rawText);
+
+      // Save audio if we have a captured blob and the transcription was saved successfully
+      if (result?.id && this.lastAudioBlob) {
+        try {
+          const arrayBuffer = await this.lastAudioBlob.arrayBuffer();
+          await window.electronAPI.saveTranscriptionAudio(
+            result.id,
+            arrayBuffer,
+            this.lastAudioMetadata
+          );
+        } catch (audioErr) {
+          // Non-blocking: transcription is saved even if audio save fails
+          logger.warn("Failed to save transcription audio", { error: audioErr.message }, "audio");
+        }
+        this.lastAudioBlob = null;
+        this.lastAudioMetadata = null;
+      }
+
       return true;
     } catch (error) {
       return false;
@@ -1835,17 +1876,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return false;
     }
 
-    // For notes context, check user preference first
+    // For notes context, require explicit opt-in to streaming
     if (this.context === "notes") {
-      const userPref = localStorage.getItem("notesStreamingPreference");
-      if (userPref === "streaming") return true;
-      if (userPref === "batch") return false;
+      return localStorage.getItem("notesStreamingPreference") === "streaming";
     }
 
     // Config-driven: check mode for this context
     if (this.sttConfig) {
-      const contextConfig =
-        this.context === "notes" ? this.sttConfig.notes : this.sttConfig.dictation;
+      const contextConfig = this.sttConfig.dictation;
       return contextConfig?.mode === "streaming";
     }
 
@@ -2217,6 +2255,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.streamingFallbackRecorder.stop();
       });
     }
+    if (fallbackBlob) {
+      this.lastAudioBlob = fallbackBlob;
+    }
     this.streamingFallbackRecorder = null;
     this.streamingFallbackChunks = [];
 
@@ -2380,9 +2421,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     if (finalText) {
       const tBeforePaste = performance.now();
       const clientTotalMs = Math.round(tBeforePaste - t0);
+      this.lastAudioMetadata = {
+        durationMs: durationSeconds
+          ? Math.round(durationSeconds * 1000)
+          : Math.round(tBeforePaste - t0),
+        provider: `${this.sttConfig?.streamingProvider || "deepgram"}-streaming`,
+        model: streamingSttModel || null,
+      };
       this.onTranscriptionComplete?.({
         success: true,
         text: finalText,
+        rawText: finalText,
         source: `${this.sttConfig?.streamingProvider || "deepgram"}-streaming`,
       });
 
@@ -2501,6 +2550,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   cleanup() {
+    this.lastAudioBlob = null;
+    this.lastAudioMetadata = null;
     if (this.isStreaming) {
       this.cleanupStreaming();
     }

@@ -93,7 +93,7 @@
     "updatePayment": "Update payment method",
     "updatePaymentDescription": "Get back to unlimited Pro transcriptions.",
     "upgradeToPro": "Upgrade to Pro",
-    "upgradeDescription": "Unlimited transcriptions. $9/month.",
+    "upgradeDescription": "Get unlimited transcriptions from as little as $8/month.",
     "useApiKey": "Use your own API key",
     "useApiKeyDescription": "Bring your own key for unlimited use.",
     "switchToLocal": "Switch to local",
@@ -222,7 +222,20 @@
       "dateGroups": {
         "today": "Today",
         "yesterday": "Yesterday"
-      }
+      },
+      "copyText": "Copy text",
+      "deleteItem": "Delete",
+      "viewRawTranscript": "View raw transcript",
+      "showInFolder": "Reveal in Finder",
+      "showInFolderWindows": "Show in Explorer",
+      "showInFolderLinux": "Show in File Manager",
+      "retryTranscription": "Re-transcribe",
+      "retrying": "Re-transcribing...",
+      "retrySuccess": "Transcription updated",
+      "retryError": "Failed to re-transcribe",
+      "audioNotFound": "Audio file not found or expired",
+      "noAiProcessing": "No AI processing was applied to this transcription",
+      "rawTranscript": "Raw Transcript"
     },
     "cloudMigration": {
       "title": "Welcome to OpenWhispr Pro",
@@ -1074,6 +1087,8 @@
       "soundEffects": {
         "dictationSounds": "Dictation sounds",
         "dictationSoundsDescription": "Play a tone when recording starts and stops",
+        "pauseMedia": "Pause media",
+        "pauseMediaDescription": "Automatically pause music when dictation starts",
         "title": "Sound Effects"
       },
       "startup": {
@@ -1164,7 +1179,17 @@
       "description": "Control what data leaves your device. Everything is off by default.",
       "title": "Privacy",
       "usageAnalytics": "Usage analytics",
-      "usageAnalyticsDescription": "Help us improve OpenWhispr by sharing anonymous performance metrics. We never send transcription content — only timing and error data."
+      "usageAnalyticsDescription": "Help us improve OpenWhispr by sharing anonymous performance metrics. We never send transcription content — only timing and error data.",
+      "audioRetention": "Audio Retention",
+      "audioRetentionDescription": "Store audio recordings locally for re-transcription and download. Files are automatically deleted after the retention period.",
+      "audioRetentionDisabled": "Disabled",
+      "audioRetentionDays": "{{count}} days",
+      "audioStorageUsage": "Storage Usage",
+      "audioStorageUsageDescription": "Audio files stored on this device",
+      "audioStorageFiles": "{{count}} files, {{size}}",
+      "audioStorageEmpty": "No audio files stored",
+      "clearAllAudio": "Clear All Audio",
+      "clearAllAudioConfirm": "Delete all stored audio files? This cannot be undone."
     },
     "prompts": {
       "description": "View, customize, and test the unified system prompt that powers text cleanup and instruction detection",

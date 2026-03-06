@@ -93,7 +93,7 @@
     "updatePayment": "更新支付方式",
     "updatePaymentDescription": "恢复无限制的 Pro 版转录。",
     "upgradeToPro": "升级到 Pro",
-    "upgradeDescription": "无限转录，每月 $9。",
+    "upgradeDescription": "无限转录，每月最低 $8 起。",
     "useApiKey": "使用自己的 API Key",
     "useApiKeyDescription": "使用你自己的密钥，无限制使用。",
     "switchToLocal": "切换到本地模式",
@@ -1074,6 +1074,8 @@
       "soundEffects": {
         "dictationSounds": "听写音效",
         "dictationSoundsDescription": "在录音开始和停止时播放提示音",
+        "pauseMedia": "暂停媒体",
+        "pauseMediaDescription": "开始听写时自动暂停音乐",
         "title": "音效"
       },
       "startup": {

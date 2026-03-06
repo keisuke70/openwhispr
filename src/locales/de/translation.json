@@ -93,7 +93,7 @@
     "updatePayment": "Zahlungsmethode aktualisieren",
     "updatePaymentDescription": "Zurück zu unbegrenzten Pro-Transkriptionen.",
     "upgradeToPro": "Auf Pro upgraden",
-    "upgradeDescription": "Unbegrenzte Transkriptionen. 9 $/Monat.",
+    "upgradeDescription": "Unbegrenzte Transkriptionen ab $8/Monat.",
     "useApiKey": "Eigenen API-Schlüssel verwenden",
     "useApiKeyDescription": "Verwenden Sie Ihren eigenen Schlüssel für unbegrenzte Nutzung.",
     "switchToLocal": "Zu lokal wechseln",
@@ -1074,6 +1074,8 @@
       "soundEffects": {
         "dictationSounds": "Diktat-Signaltöne",
         "dictationSoundsDescription": "Ton abspielen, wenn die Aufnahme startet und stoppt",
+        "pauseMedia": "Medien pausieren",
+        "pauseMediaDescription": "Musik beim Starten der Diktat automatisch pausieren",
         "title": "Soundeffekte"
       },
       "startup": {

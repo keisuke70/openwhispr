@@ -9,6 +9,7 @@ const GnomeShortcutManager = require("./gnomeShortcut");
 const AssemblyAiStreaming = require("./assemblyAiStreaming");
 const { i18nMain, changeLanguage } = require("./i18nMain");
 const DeepgramStreaming = require("./deepgramStreaming");
+const AudioStorageManager = require("./audioStorage");
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
@@ -106,7 +107,10 @@ class IPCHandlers {
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
     this._textEditHandler = null;
+    this.audioStorageManager = new AudioStorageManager();
+    this._audioCleanupInterval = null;
     this._setupTextEditMonitor();
+    this._setupAudioCleanup();
     this.setupHandlers();
 
     if (this.whisperManager?.serverManager) {
@@ -134,6 +138,31 @@ class IPCHandlers {
       this.textEditMonitor.removeListener("text-edited", this._textEditHandler);
       this._textEditHandler = null;
     }
+  }
+
+  _setupAudioCleanup() {
+    const DEFAULT_RETENTION_DAYS = 30;
+    const SIX_HOURS_MS = 6 * 60 * 60 * 1000;
+
+    // Run initial cleanup with default retention
+    try {
+      this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
+    } catch (error) {
+      debugLogger.error("Initial audio cleanup failed", { error: error.message }, "audio-storage");
+    }
+
+    // Set up periodic cleanup every 6 hours
+    this._audioCleanupInterval = setInterval(() => {
+      try {
+        this.audioStorageManager.cleanupExpiredAudio(DEFAULT_RETENTION_DAYS, this.databaseManager);
+      } catch (error) {
+        debugLogger.error(
+          "Periodic audio cleanup failed",
+          { error: error.message },
+          "audio-storage"
+        );
+      }
+    }, SIX_HOURS_MS);
   }
 
   _setupTextEditMonitor() {
@@ -310,8 +339,8 @@ class IPCHandlers {
       return this.environmentManager.createProductionEnvFile(apiKey);
     });
 
-    ipcMain.handle("db-save-transcription", async (event, text) => {
-      const result = this.databaseManager.saveTranscription(text);
+    ipcMain.handle("db-save-transcription", async (event, text, rawText) => {
+      const result = this.databaseManager.saveTranscription(text, rawText);
       if (result?.success && result?.transcription) {
         setImmediate(() => {
           this.broadcastToWindows("transcription-added", result.transcription);
@@ -325,6 +354,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("db-clear-transcriptions", async (event) => {
+      this.audioStorageManager.deleteAllAudio();
       const result = this.databaseManager.clearTranscriptions();
       if (result?.success) {
         setImmediate(() => {
@@ -337,6 +367,7 @@ class IPCHandlers {
     });
 
     ipcMain.handle("db-delete-transcription", async (event, id) => {
+      this.audioStorageManager.deleteAudio(id);
       const result = this.databaseManager.deleteTranscription(id);
       if (result?.success) {
         setImmediate(() => {
@@ -344,6 +375,78 @@ class IPCHandlers {
         });
       }
       return result;
+    });
+
+    // Audio storage handlers
+    ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
+      const transcription = this.databaseManager.getTranscriptionById(id);
+      const timestamp = transcription?.timestamp || null;
+      const result = this.audioStorageManager.saveAudio(id, Buffer.from(audioBuffer), timestamp);
+      if (result.success) {
+        this.databaseManager.updateTranscriptionAudio(id, {
+          hasAudio: 1,
+          audioDurationMs: metadata?.durationMs || null,
+          provider: metadata?.provider || null,
+          model: metadata?.model || null,
+        });
+      }
+      return result;
+    });
+
+    ipcMain.handle("get-audio-path", async (event, id) => {
+      return this.audioStorageManager.getAudioPath(id);
+    });
+
+    ipcMain.handle("show-audio-in-folder", async (event, id) => {
+      const filePath = this.audioStorageManager.getAudioPath(id);
+      if (!filePath) return { success: false };
+      shell.showItemInFolder(filePath);
+      return { success: true };
+    });
+
+    ipcMain.handle("get-audio-buffer", async (event, id) => {
+      const buffer = this.audioStorageManager.getAudioBuffer(id);
+      return buffer ? buffer.buffer : null;
+    });
+
+    ipcMain.handle("delete-transcription-audio", async (event, id) => {
+      const result = this.audioStorageManager.deleteAudio(id);
+      if (result.success) {
+        this.databaseManager.updateTranscriptionAudio(id, {
+          hasAudio: 0,
+          audioDurationMs: null,
+          provider: null,
+          model: null,
+        });
+      }
+      return result;
+    });
+
+    ipcMain.handle("get-audio-storage-usage", async () => {
+      return this.audioStorageManager.getStorageUsage();
+    });
+
+    ipcMain.handle("delete-all-audio", async () => {
+      const result = this.audioStorageManager.deleteAllAudio();
+      try {
+        const rows = this.databaseManager.db
+          .prepare("SELECT id FROM transcriptions WHERE has_audio = 1")
+          .all();
+        if (rows.length > 0) {
+          this.databaseManager.clearAudioFlags(rows.map((r) => r.id));
+        }
+      } catch (error) {
+        debugLogger.error(
+          "Failed to clear audio flags after delete-all",
+          { error: error.message },
+          "audio-storage"
+        );
+      }
+      return result;
+    });
+
+    ipcMain.handle("get-transcription-by-id", async (event, id) => {
+      return this.databaseManager.getTranscriptionById(id);
     });
 
     // Dictionary handlers
@@ -1734,6 +1837,21 @@ class IPCHandlers {
     ipcMain.handle("open-sound-input-settings", () => openSystemSettings("sound"));
     ipcMain.handle("open-accessibility-settings", () => openSystemSettings("accessibility"));
 
+    ipcMain.handle("toggle-media-playback", () => {
+      const mediaPlayer = require("./mediaPlayer");
+      return mediaPlayer.toggleMedia();
+    });
+
+    ipcMain.handle("pause-media-playback", () => {
+      const mediaPlayer = require("./mediaPlayer");
+      return mediaPlayer.pauseMedia();
+    });
+
+    ipcMain.handle("resume-media-playback", () => {
+      const mediaPlayer = require("./mediaPlayer");
+      return mediaPlayer.resumeMedia();
+    });
+
     ipcMain.handle("request-microphone-access", async () => {
       if (process.platform !== "darwin") {
         return { granted: true };
@@ -1907,6 +2025,83 @@ class IPCHandlers {
       }
     });
 
+    ipcMain.handle("retry-transcription", async (event, id) => {
+      const buffer = this.audioStorageManager.getAudioBuffer(id);
+      if (!buffer) return { success: false, error: "Audio file not found" };
+      try {
+        let result;
+        // Try local engines first
+        if (this.parakeetManager?.serverManager?.isAvailable?.()) {
+          result = await this.parakeetManager.transcribeLocalParakeet(buffer, {});
+        } else if (this.whisperManager?.serverManager?.isAvailable?.()) {
+          result = await this.whisperManager.transcribeLocalWhisper(buffer, {});
+        }
+
+        // Fall back to cloud transcription
+        if (!result?.text) {
+          const win = BrowserWindow.fromWebContents(event.sender);
+          if (win) {
+            const cookieHeader = await getSessionCookiesFromWindow(win);
+            if (cookieHeader) {
+              const apiUrl = getApiUrl();
+              if (apiUrl) {
+                const { body, boundary } = buildMultipartBody(buffer, "audio.webm", "audio/webm", {
+                  clientType: "desktop",
+                  appVersion: app.getVersion(),
+                  sessionId: this.sessionId,
+                });
+                const url = new URL(`${apiUrl}/api/transcribe`);
+                const data = await postMultipart(url, body, boundary, {
+                  Cookie: cookieHeader,
+                });
+                if (data.statusCode === 200 && data.data?.text) {
+                  result = { text: data.data.text, source: "openwhispr", model: "cloud" };
+                }
+              }
+            }
+          }
+        }
+
+        if (!result?.text) {
+          return { success: false, error: "No transcription engine available" };
+        }
+
+        this.databaseManager.updateTranscriptionText(id, result.text, result.text);
+        const provider = result.source || "local";
+        const model = result.model || null;
+        this.databaseManager.updateTranscriptionAudio(id, {
+          hasAudio: 1,
+          audioDurationMs: null,
+          provider,
+          model,
+        });
+        const updated = this.databaseManager.getTranscriptionById(id);
+        return { success: true, transcription: updated };
+      } catch (error) {
+        debugLogger.error(
+          "Retry transcription failed",
+          { id, error: error.message },
+          "audio-storage"
+        );
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("update-transcription-text", async (_event, id, text, rawText) => {
+      try {
+        this.databaseManager.updateTranscriptionText(id, text, rawText);
+        const updated = this.databaseManager.getTranscriptionById(id);
+        return { success: true, transcription: updated };
+      } catch (error) {
+        debugLogger.error(
+          "Failed to update transcription text",
+          { id, error: error.message },
+          "audio-storage"
+        );
+        return { success: false, error: error.message };
+      }
+    });
+
     ipcMain.handle("cloud-reason", async (event, text, opts = {}) => {
       try {
         const apiUrl = getApiUrl();
@@ -1971,10 +2166,19 @@ class IPCHandlers {
             model: data.model,
             provider: data.provider,
             resultLength: data.text?.length || 0,
+            promptMode: data.promptMode,
+            matchType: data.matchType,
           },
           "cloud-api"
         );
-        return { success: true, text: data.text, model: data.model, provider: data.provider };
+        return {
+          success: true,
+          text: data.text,
+          model: data.model,
+          provider: data.provider,
+          promptMode: data.promptMode,
+          matchType: data.matchType,
+        };
       } catch (error) {
         debugLogger.error("Cloud reasoning error:", error);
         return { success: false, error: error.message };

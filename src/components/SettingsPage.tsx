@@ -63,6 +63,7 @@ import { SettingsRow } from "./ui/SettingsSection";
 import { useUsage } from "../hooks/useUsage";
 import { cn } from "./lib/utils";
 import { startMigration, useMigration } from "../stores/noteStore.js";
+import { formatBytes } from "../utils/formatBytes";
 
 export type SettingsSectionType =
   | "account"
@@ -73,7 +74,6 @@ export type SettingsSectionType =
   | "intelligence"
   | "privacyData"
   | "system"
-  | "dictionary"
   | "aiModels"
   | "agentConfig"
   | "prompts";
@@ -676,12 +676,16 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setCloudReasoningMode,
     audioCuesEnabled,
     setAudioCuesEnabled,
+    pauseMediaOnDictation,
+    setPauseMediaOnDictation,
     floatingIconAutoHide,
     setFloatingIconAutoHide,
     cloudBackupEnabled,
     setCloudBackupEnabled,
     telemetryEnabled,
     setTelemetryEnabled,
+    audioRetentionDays,
+    setAudioRetentionDays,
     customDictionary,
     setCustomDictionary,
   } = useSettings();
@@ -721,6 +725,31 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
   const { agentName, setAgentName } = useAgentName();
   const [agentNameInput, setAgentNameInput] = useState(agentName);
   const [newDictionaryWord, setNewDictionaryWord] = useState("");
+  const [audioStorageUsage, setAudioStorageUsage] = useState<{
+    fileCount: number;
+    totalBytes: number;
+  }>({ fileCount: 0, totalBytes: 0 });
+
+  useEffect(() => {
+    if (activeSection !== "privacyData") return;
+    window.electronAPI
+      ?.getAudioStorageUsage?.()
+      .then((usage: { fileCount: number; totalBytes: number }) => {
+        if (usage) setAudioStorageUsage(usage);
+      })
+      .catch(() => {});
+  }, [activeSection]);
+
+  const handleClearAllAudio = async () => {
+    if (!window.electronAPI?.deleteAllAudio) return;
+    try {
+      await window.electronAPI.deleteAllAudio();
+      setAudioStorageUsage({ fileCount: 0, totalBytes: 0 });
+      toast({ title: t("settingsPage.privacy.clearAllAudio"), variant: "default" });
+    } catch {
+      // silent fail
+    }
+  };
 
   const handleAddDictionaryWord = useCallback(() => {
     const existingWords = new Set(customDictionary.map((w) => w.toLowerCase()));
@@ -1687,6 +1716,14 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     <Toggle checked={audioCuesEnabled} onChange={setAudioCuesEnabled} />
                   </SettingsRow>
                 </SettingsPanelRow>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.general.soundEffects.pauseMedia")}
+                    description={t("settingsPage.general.soundEffects.pauseMediaDescription")}
+                  >
+                    <Toggle checked={pauseMediaOnDictation} onChange={setPauseMediaOnDictation} />
+                  </SettingsRow>
+                </SettingsPanelRow>
               </SettingsPanel>
             </div>
 
@@ -1782,6 +1819,30 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>
+
+            {/* Dictionary */}
+            <div>
+              <SectionHeader
+                title={t("settingsPage.dictionary.autoLearnTitle", {
+                  defaultValue: "Auto-learn from corrections",
+                })}
+              />
+              <SettingsPanel>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.dictionary.autoLearnTitle", {
+                      defaultValue: "Auto-learn from corrections",
+                    })}
+                    description={t("settingsPage.dictionary.autoLearnDescription", {
+                      defaultValue:
+                        "When you correct a transcription in the target app, the corrected word is automatically added to your dictionary.",
+                    })}
+                  >
+                    <Toggle checked={autoLearnCorrections} onChange={setAutoLearnCorrections} />
+                  </SettingsRow>
+                </SettingsPanelRow>
+              </SettingsPanel>
+            </div>
           </div>
         );
 
@@ -1861,194 +1922,6 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
             setCloudTranscriptionBaseUrl={setCloudTranscriptionBaseUrl}
             toast={toast}
           />
-        );
-
-      case "dictionary":
-        return (
-          <div className="space-y-5">
-            <SectionHeader
-              title={t("settingsPage.dictionary.title")}
-              description={t("settingsPage.dictionary.description")}
-            />
-
-            {/* Add Words */}
-            <SettingsPanel>
-              <SettingsPanelRow>
-                <div className="space-y-2">
-                  <p className="text-[12px] font-medium text-foreground">
-                    {t("settingsPage.dictionary.addWordOrPhrase")}
-                  </p>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder={t("settingsPage.dictionary.placeholder")}
-                      value={newDictionaryWord}
-                      onChange={(e) => setNewDictionaryWord(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          handleAddDictionaryWord();
-                        }
-                      }}
-                      className="flex-1 h-8 text-[12px]"
-                    />
-                    <Button
-                      onClick={handleAddDictionaryWord}
-                      disabled={!newDictionaryWord.trim()}
-                      size="sm"
-                      className="h-8"
-                    >
-                      {t("settingsPage.dictionary.add")}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground/50">
-                    {t("settingsPage.dictionary.pressEnterToAdd")}
-                  </p>
-                </div>
-              </SettingsPanelRow>
-            </SettingsPanel>
-
-            {/* Auto-learn from corrections */}
-            <div>
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <div className="flex items-center justify-between w-full">
-                    <div>
-                      <p className="text-[12px] font-medium text-foreground">
-                        {t("settingsPage.dictionary.autoLearnTitle", {
-                          defaultValue: "Auto-learn from corrections",
-                        })}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground/50 mt-0.5">
-                        {t("settingsPage.dictionary.autoLearnDescription", {
-                          defaultValue:
-                            "When you correct a transcription in the target app, the corrected word is automatically added to your dictionary.",
-                        })}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setAutoLearnCorrections(!autoLearnCorrections)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                        autoLearnCorrections ? "bg-primary" : "bg-muted-foreground/20"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                          autoLearnCorrections ? "translate-x-[18px]" : "translate-x-[3px]"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Word List */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[12px] font-medium text-foreground">
-                  {t("settingsPage.dictionary.yourWords")}
-                  {customDictionary.length > 0 && (
-                    <span className="ml-1.5 text-muted-foreground/50 font-normal text-[11px]">
-                      {customDictionary.length}
-                    </span>
-                  )}
-                </p>
-                {customDictionary.length > 0 && (
-                  <button
-                    onClick={() => {
-                      showConfirmDialog({
-                        title: t("settingsPage.dictionary.clearDictionaryTitle"),
-                        description: t("settingsPage.dictionary.clearDictionaryDescription"),
-                        confirmText: t("settingsPage.dictionary.clearAll"),
-                        variant: "destructive",
-                        onConfirm: () =>
-                          setCustomDictionary(customDictionary.filter((w) => w === agentName)),
-                      });
-                    }}
-                    className="text-[10px] text-muted-foreground/40 hover:text-destructive transition-colors"
-                  >
-                    {t("settingsPage.dictionary.clearAll")}
-                  </button>
-                )}
-              </div>
-
-              {customDictionary.length > 0 ? (
-                <SettingsPanel>
-                  <SettingsPanelRow>
-                    <div className="flex flex-wrap gap-1">
-                      {customDictionary.map((word) => {
-                        const isAgentName = word === agentName;
-                        return (
-                          <span
-                            key={word}
-                            className={`group inline-flex items-center gap-0.5 py-0.5 rounded-[5px] text-[11px] border transition-all ${
-                              isAgentName
-                                ? "pl-2 pr-2 bg-primary/10 dark:bg-primary/15 text-primary border-primary/20 dark:border-primary/30"
-                                : "pl-2 pr-1 bg-primary/5 dark:bg-primary/10 text-foreground border-border/30 dark:border-border-subtle hover:border-destructive/40 hover:bg-destructive/5"
-                            }`}
-                            title={
-                              isAgentName
-                                ? t("settingsPage.dictionary.agentNameAutoManaged")
-                                : undefined
-                            }
-                          >
-                            {word}
-                            {!isAgentName && (
-                              <button
-                                onClick={() => handleRemoveDictionaryWord(word)}
-                                className="ml-0.5 p-0.5 rounded-sm text-muted-foreground/40 hover:text-destructive transition-colors"
-                                title={t("settingsPage.dictionary.removeWord")}
-                              >
-                                <svg
-                                  width="9"
-                                  height="9"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.5"
-                                  strokeLinecap="round"
-                                >
-                                  <path d="M18 6L6 18M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </SettingsPanelRow>
-                </SettingsPanel>
-              ) : (
-                <div className="rounded-lg border border-dashed border-border/40 dark:border-border-subtle py-6 flex flex-col items-center justify-center text-center">
-                  <p className="text-[11px] text-muted-foreground/50">
-                    {t("settingsPage.dictionary.noWords")}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/40 mt-0.5">
-                    {t("settingsPage.dictionary.wordsAppearHere")}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* How it works */}
-            <div>
-              <SectionHeader title={t("settingsPage.dictionary.howItWorksTitle")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <p className="text-[12px] text-muted-foreground leading-relaxed">
-                    {t("settingsPage.dictionary.howItWorksDescription")}
-                  </p>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <p className="text-[12px] text-muted-foreground leading-relaxed">
-                    <span className="font-medium text-foreground">
-                      {t("settingsPage.dictionary.tipLabel")}
-                    </span>{" "}
-                    {t("settingsPage.dictionary.tipDescription")}
-                  </p>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-          </div>
         );
 
       case "aiModels":
@@ -2398,6 +2271,69 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     description={t("settingsPage.privacy.usageAnalyticsDescription")}
                   >
                     <Toggle checked={telemetryEnabled} onChange={setTelemetryEnabled} />
+                  </SettingsRow>
+                </SettingsPanelRow>
+              </SettingsPanel>
+            </div>
+
+            {/* Audio Retention */}
+            <div className="border-t border-border/40 pt-6">
+              <SectionHeader
+                title={t("settingsPage.privacy.audioRetention")}
+                description={t("settingsPage.privacy.audioRetentionDescription")}
+              />
+
+              <SettingsPanel>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.privacy.audioRetention")}
+                    description={t("settingsPage.privacy.audioRetentionDescription")}
+                  >
+                    <select
+                      value={audioRetentionDays}
+                      onChange={(e) => setAudioRetentionDays(parseInt(e.target.value, 10))}
+                      className="h-7 rounded border border-border/70 bg-surface-1/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-border-hover hover:bg-surface-2/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
+                    >
+                      <option value={0}>{t("settingsPage.privacy.audioRetentionDisabled")}</option>
+                      <option value={7}>
+                        {t("settingsPage.privacy.audioRetentionDays", { count: 7 })}
+                      </option>
+                      <option value={14}>
+                        {t("settingsPage.privacy.audioRetentionDays", { count: 14 })}
+                      </option>
+                      <option value={30}>
+                        {t("settingsPage.privacy.audioRetentionDays", { count: 30 })}
+                      </option>
+                      <option value={60}>
+                        {t("settingsPage.privacy.audioRetentionDays", { count: 60 })}
+                      </option>
+                      <option value={90}>
+                        {t("settingsPage.privacy.audioRetentionDays", { count: 90 })}
+                      </option>
+                    </select>
+                  </SettingsRow>
+                </SettingsPanelRow>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.privacy.audioStorageUsage")}
+                    description={
+                      audioStorageUsage.fileCount > 0
+                        ? t("settingsPage.privacy.audioStorageFiles", {
+                            count: audioStorageUsage.fileCount,
+                            size: formatBytes(audioStorageUsage.totalBytes),
+                          })
+                        : t("settingsPage.privacy.audioStorageEmpty")
+                    }
+                  >
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={audioStorageUsage.fileCount === 0}
+                      onClick={handleClearAllAudio}
+                    >
+                      {t("settingsPage.privacy.clearAllAudio")}
+                    </Button>
                   </SettingsRow>
                 </SettingsPanelRow>
               </SettingsPanel>

@@ -31,10 +31,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onStopDictation: registerListener("stop-dictation", (callback) => () => callback()),
 
   // Database functions
-  saveTranscription: (text) => ipcRenderer.invoke("db-save-transcription", text),
+  saveTranscription: (text, rawText) => ipcRenderer.invoke("db-save-transcription", text, rawText),
   getTranscriptions: (limit) => ipcRenderer.invoke("db-get-transcriptions", limit),
   clearTranscriptions: () => ipcRenderer.invoke("db-clear-transcriptions"),
   deleteTranscription: (id) => ipcRenderer.invoke("db-delete-transcription", id),
+
+  // Audio storage functions
+  saveTranscriptionAudio: (id, audioBuffer, metadata) =>
+    ipcRenderer.invoke("save-transcription-audio", id, audioBuffer, metadata),
+  getAudioPath: (id) => ipcRenderer.invoke("get-audio-path", id),
+  showAudioInFolder: (id) => ipcRenderer.invoke("show-audio-in-folder", id),
+  getAudioBuffer: (id) => ipcRenderer.invoke("get-audio-buffer", id),
+  deleteTranscriptionAudio: (id) => ipcRenderer.invoke("delete-transcription-audio", id),
+  getAudioStorageUsage: () => ipcRenderer.invoke("get-audio-storage-usage"),
+  deleteAllAudio: () => ipcRenderer.invoke("delete-all-audio"),
+  retryTranscription: (id) => ipcRenderer.invoke("retry-transcription", id),
+  updateTranscriptionText: (id, text, rawText) =>
+    ipcRenderer.invoke("update-transcription-text", id, text, rawText),
+  getTranscriptionById: (id) => ipcRenderer.invoke("get-transcription-by-id", id),
+
   // Dictionary functions
   getDictionary: () => ipcRenderer.invoke("db-get-dictionary"),
   setDictionary: (words) => ipcRenderer.invoke("db-set-dictionary", words),
@@ -337,6 +352,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openMicrophoneSettings: () => ipcRenderer.invoke("open-microphone-settings"),
   openSoundInputSettings: () => ipcRenderer.invoke("open-sound-input-settings"),
   openAccessibilitySettings: () => ipcRenderer.invoke("open-accessibility-settings"),
+  toggleMediaPlayback: () => ipcRenderer.invoke("toggle-media-playback"),
+  pauseMediaPlayback: () => ipcRenderer.invoke("pause-media-playback"),
+  resumeMediaPlayback: () => ipcRenderer.invoke("resume-media-playback"),
   openWhisperModelsFolder: () => ipcRenderer.invoke("open-whisper-models-folder"),
   authClearSession: () => ipcRenderer.invoke("auth-clear-session"),
 

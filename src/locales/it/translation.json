@@ -93,7 +93,7 @@
     "updatePayment": "Aggiorna metodo di pagamento",
     "updatePaymentDescription": "Torna alle trascrizioni Pro illimitate.",
     "upgradeToPro": "Passa a Pro",
-    "upgradeDescription": "Trascrizioni illimitate. $9/mese.",
+    "upgradeDescription": "Trascrizioni illimitate a partire da soli $8/mese.",
     "useApiKey": "Usa la tua chiave API",
     "useApiKeyDescription": "Porta la tua chiave per un uso illimitato.",
     "switchToLocal": "Passa a locale",
@@ -1078,6 +1078,8 @@
       "soundEffects": {
         "dictationSounds": "Suoni di dettatura",
         "dictationSoundsDescription": "Riproduci un tono quando la registrazione inizia e finisce",
+        "pauseMedia": "Pausa multimedia",
+        "pauseMediaDescription": "Metti automaticamente in pausa la musica quando inizia la dettatura",
         "title": "Effetti sonori"
       },
       "startup": {

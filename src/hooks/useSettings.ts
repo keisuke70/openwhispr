@@ -53,6 +53,7 @@ export interface ApiKeySettings {
 export interface PrivacySettings {
   cloudBackupEnabled: boolean;
   telemetryEnabled: boolean;
+  audioRetentionDays: number;
 }
 
 export interface ThemeSettings {
@@ -213,6 +214,8 @@ function useSettingsInternal() {
     setActivationMode: store.setActivationMode,
     audioCuesEnabled: store.audioCuesEnabled,
     setAudioCuesEnabled: store.setAudioCuesEnabled,
+    pauseMediaOnDictation: store.pauseMediaOnDictation,
+    setPauseMediaOnDictation: store.setPauseMediaOnDictation,
     floatingIconAutoHide: store.floatingIconAutoHide,
     setFloatingIconAutoHide: store.setFloatingIconAutoHide,
     preferBuiltInMic: store.preferBuiltInMic,
@@ -225,6 +228,8 @@ function useSettingsInternal() {
     setCloudBackupEnabled: store.setCloudBackupEnabled,
     telemetryEnabled: store.telemetryEnabled,
     setTelemetryEnabled: store.setTelemetryEnabled,
+    audioRetentionDays: store.audioRetentionDays,
+    setAudioRetentionDays: store.setAudioRetentionDays,
     updateTranscriptionSettings: store.updateTranscriptionSettings,
     updateReasoningSettings: store.updateReasoningSettings,
     updateApiKeys: store.updateApiKeys,

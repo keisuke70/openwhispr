@@ -81,6 +81,13 @@ export function removeTranscription(id: number) {
   useTranscriptionStore.setState({ transcriptions: next });
 }
 
+export function updateTranscription(item: TranscriptionItem) {
+  if (!item) return;
+  const { transcriptions } = useTranscriptionStore.getState();
+  const next = transcriptions.map((existing) => (existing.id === item.id ? item : existing));
+  useTranscriptionStore.setState({ transcriptions: next });
+}
+
 export function clearTranscriptions() {
   if (useTranscriptionStore.getState().transcriptions.length === 0) return;
   useTranscriptionStore.setState({ transcriptions: [] });

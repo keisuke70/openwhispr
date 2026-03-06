@@ -1060,6 +1060,8 @@ class ReasoningService extends BaseReasoningService {
         model: result.model,
         provider: result.provider,
         resultLength: result.text.length,
+        promptMode: result.promptMode,
+        matchType: result.matchType,
       });
 
       return result.text;
