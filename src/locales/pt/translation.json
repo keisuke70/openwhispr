@@ -127,10 +127,11 @@
       "microphoneDescription": "Para capturar sua voz",
       "grant": "Conceder",
       "accessibilityTitle": "Acessibilidade",
-      "accessibilityDescription": "Para colar texto em aplicativos",
+      "accessibilityDescription": "Ative nas Configurações do Sistema",
       "testAndGrant": "Testar e conceder",
       "requiredForApp": "Necessário para o OpenWhispr funcionar",
-      "microphoneRequired": "Acesso ao microfone necessário"
+      "microphoneRequired": "Acesso ao microfone necessário",
+      "openSystemSettings": "Abrir Configurações do Sistema"
     },
     "transcription": {
       "title": "Configuração de transcrição",
@@ -650,7 +651,7 @@
     "selectPlaceholder": "Selecione um microfone",
     "systemDefault": "Padrão do sistema",
     "unknownDevice": "Dispositivo desconhecido",
-    "using": "Usando:"
+    "using": "Usando: {{device}}"
   },
   "pasteToolsInfo": {
     "checking": "Verificando capacidades do sistema...",

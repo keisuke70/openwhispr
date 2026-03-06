@@ -155,10 +155,11 @@
       "microphoneDescription": "Для записи голоса",
       "grant": "Предоставить",
       "accessibilityTitle": "Универсальный доступ",
-      "accessibilityDescription": "Для вставки текста в приложения",
+      "accessibilityDescription": "Включите в Системных настройках",
       "testAndGrant": "Проверить и предоставить",
       "requiredForApp": "Необходимо для работы OpenWhispr",
-      "microphoneRequired": "Требуется доступ к микрофону"
+      "microphoneRequired": "Требуется доступ к микрофону",
+      "openSystemSettings": "Открыть Системные настройки"
     },
     "transcription": {
       "title": "Настройка транскрипции",
@@ -678,7 +679,7 @@
     "selectPlaceholder": "Выберите микрофон",
     "systemDefault": "Системный по умолчанию",
     "unknownDevice": "Неизвестное устройство",
-    "using": "Используется:"
+    "using": "Используется: {{device}}"
   },
   "pasteToolsInfo": {
     "checking": "Проверка системных возможностей...",

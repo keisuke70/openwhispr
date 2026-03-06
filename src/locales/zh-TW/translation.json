@@ -155,10 +155,11 @@
       "microphoneDescription": "用於擷取你的語音",
       "grant": "授權",
       "accessibilityTitle": "輔助使用",
-      "accessibilityDescription": "用於將文字貼入應用程式",
+      "accessibilityDescription": "在系統設定中開啟此權限",
       "testAndGrant": "測試並授權",
       "requiredForApp": "OpenWhispr 運作所需",
-      "microphoneRequired": "需要麥克風存取權限"
+      "microphoneRequired": "需要麥克風存取權限",
+      "openSystemSettings": "打開系統設定"
     },
     "transcription": {
       "title": "轉錄設定",
@@ -678,7 +679,7 @@
     "selectPlaceholder": "選擇麥克風",
     "systemDefault": "系統預設",
     "unknownDevice": "未知裝置",
-    "using": "使用中："
+    "using": "使用中：{{device}}"
   },
   "pasteToolsInfo": {
     "checking": "正在檢查系統功能...",

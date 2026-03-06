@@ -155,10 +155,11 @@
       "microphoneDescription": "To capture your voice",
       "grant": "Grant",
       "accessibilityTitle": "Accessibility",
-      "accessibilityDescription": "To paste text into apps",
+      "accessibilityDescription": "Enable in System Settings by toggling it on",
       "testAndGrant": "Test & Grant",
       "requiredForApp": "Required for OpenWhispr to work",
       "microphoneRequired": "Microphone access required",
+      "openSystemSettings": "Open System Settings",
       "screenRecordingTitle": "Screen Recording",
       "screenRecordingDescription": "Needed to capture meeting audio. You can enable this later in System Settings.",
       "optional": "Optional"
@@ -736,7 +737,7 @@
     "selectPlaceholder": "Select a microphone",
     "systemDefault": "System Default",
     "unknownDevice": "Unknown Device",
-    "using": "Using:"
+    "using": "Using: {{device}}"
   },
   "pasteToolsInfo": {
     "checking": "Checking system capabilities...",

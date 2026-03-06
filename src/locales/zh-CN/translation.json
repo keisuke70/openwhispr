@@ -155,10 +155,11 @@
       "microphoneDescription": "用于捕捉你的声音",
       "grant": "授权",
       "accessibilityTitle": "辅助功能",
-      "accessibilityDescription": "用于将文本粘贴到应用中",
+      "accessibilityDescription": "在系统设置中开启此权限",
       "testAndGrant": "测试并授权",
       "requiredForApp": "OpenWhispr 运行所必需的权限",
-      "microphoneRequired": "需要麦克风访问权限"
+      "microphoneRequired": "需要麦克风访问权限",
+      "openSystemSettings": "打开系统设置"
     },
     "transcription": {
       "title": "转录设置",
@@ -678,7 +679,7 @@
     "selectPlaceholder": "选择麦克风",
     "systemDefault": "系统默认",
     "unknownDevice": "未知设备",
-    "using": "当前使用："
+    "using": "当前使用：{{device}}"
   },
   "pasteToolsInfo": {
     "checking": "正在检查系统功能...",

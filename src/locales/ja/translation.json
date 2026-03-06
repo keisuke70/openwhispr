@@ -155,10 +155,11 @@
       "microphoneDescription": "音声のキャプチャに使用",
       "grant": "許可",
       "accessibilityTitle": "アクセシビリティ",
-      "accessibilityDescription": "アプリへのテキスト貼り付けに使用",
+      "accessibilityDescription": "システム設定でオンに切り替えてください",
       "testAndGrant": "テストして許可",
       "requiredForApp": "OpenWhispr の動作に必要です",
-      "microphoneRequired": "マイクへのアクセスが必要です"
+      "microphoneRequired": "マイクへのアクセスが必要です",
+      "openSystemSettings": "システム設定を開く"
     },
     "transcription": {
       "title": "文字起こし設定",
@@ -678,7 +679,7 @@
     "selectPlaceholder": "マイクを選択",
     "systemDefault": "システムデフォルト",
     "unknownDevice": "不明なデバイス",
-    "using": "使用中:"
+    "using": "使用中: {{device}}"
   },
   "pasteToolsInfo": {
     "checking": "システム機能を確認中...",

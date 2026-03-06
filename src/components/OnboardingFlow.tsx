@@ -397,6 +397,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                         onRequest={permissionsHook.testAccessibilityPermission}
                         buttonText={t("onboarding.permissions.testAndGrant")}
                         onOpenSettings={permissionsHook.openAccessibilitySettings}
+                        openSettingsText={t("onboarding.permissions.openSystemSettings")}
                       />
                       <PermissionCard
                         icon={Monitor}
@@ -552,6 +553,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                     onRequest={permissionsHook.testAccessibilityPermission}
                     buttonText={t("onboarding.permissions.testAndGrant")}
                     onOpenSettings={permissionsHook.openAccessibilitySettings}
+                    openSettingsText={t("onboarding.permissions.openSystemSettings")}
                   />
                   <PermissionCard
                     icon={Monitor}
