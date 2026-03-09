@@ -168,7 +168,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   createProductionEnvFile: (key) => ipcRenderer.invoke("create-production-env-file", key),
 
   // Clipboard functions
-  checkAccessibilityPermission: () => ipcRenderer.invoke("check-accessibility-permission"),
+  checkAccessibilityPermission: (silent) =>
+    ipcRenderer.invoke("check-accessibility-permission", silent),
   readClipboard: () => ipcRenderer.invoke("read-clipboard"),
   writeClipboard: (text) => ipcRenderer.invoke("write-clipboard", text),
   checkPasteTools: () => ipcRenderer.invoke("check-paste-tools"),
@@ -468,6 +469,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
     (callback) => (_event, data) => callback(data)
   ),
 
+  // Dictation realtime streaming
+  dictationRealtimeWarmup: (options) => ipcRenderer.invoke("dictation-realtime-warmup", options),
+  dictationRealtimeStart: (options) => ipcRenderer.invoke("dictation-realtime-start", options),
+  dictationRealtimeSend: (buffer) => ipcRenderer.send("dictation-realtime-send", buffer),
+  dictationRealtimeStop: () => ipcRenderer.invoke("dictation-realtime-stop"),
+  onDictationRealtimePartial: registerListener(
+    "dictation-realtime-partial",
+    (callback) => (_event, data) => callback(data)
+  ),
+  onDictationRealtimeFinal: registerListener(
+    "dictation-realtime-final",
+    (callback) => (_event, data) => callback(data)
+  ),
+  onDictationRealtimeError: registerListener(
+    "dictation-realtime-error",
+    (callback) => (_event, data) => callback(data)
+  ),
+  onDictationRealtimeSessionEnd: registerListener(
+    "dictation-realtime-session-end",
+    (callback) => (_event, data) => callback(data)
+  ),
+
   // Usage limit events (for showing UpgradePrompt in ControlPanel)
   notifyLimitReached: (data) => ipcRenderer.send("limit-reached", data),
   onLimitReached: registerListener("limit-reached", (callback) => (_event, data) => callback(data)),
@@ -514,8 +537,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("panel-start-position-changed", position),
 
   // Start minimized
-  notifyStartMinimizedChanged: (enabled) =>
-    ipcRenderer.send("start-minimized-changed", enabled),
+  notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),
 
   // Auto-start management
   getAutoStartEnabled: () => ipcRenderer.invoke("get-auto-start-enabled"),

@@ -1,13 +1,18 @@
-const { execSync, execFileSync } = require("child_process");
+const { exec, execFile } = require("child_process");
+const { promisify } = require("util");
 const path = require("path");
 const fs = require("fs");
 const EventEmitter = require("events");
 const debugLogger = require("./debugLogger");
 
-const CHECK_INTERVAL_MS = 5 * 1000;
-const SUSTAINED_THRESHOLD_CHECKS = 3;
+const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
+
+// Windows uses tasklist (process spawn) per check; poll less frequently to reduce overhead.
+const CHECK_INTERVAL_MS = process.platform === "win32" ? 15 * 1000 : 5 * 1000;
+const SUSTAINED_THRESHOLD_CHECKS = process.platform === "win32" ? 2 : 3;
 const COOLDOWN_MS = 30 * 60 * 1000;
-const EXEC_OPTS = { timeout: 5000, encoding: "utf8", stdio: ["pipe", "pipe", "ignore"] };
+const EXEC_OPTS = { timeout: 5000, encoding: "utf8" };
 
 class AudioActivityDetector extends EventEmitter {
   constructor() {
@@ -19,6 +24,7 @@ class AudioActivityDetector extends EventEmitter {
     this.lastDismissedAt = null;
     this._micCheckBinary = null;
     this._userRecording = false;
+    this._checking = false;
   }
 
   setUserRecording(active) {
@@ -67,47 +73,53 @@ class AudioActivityDetector extends EventEmitter {
     this.hasPrompted = false;
   }
 
-  _check() {
+  async _check() {
+    if (this._checking) return;
     if (this.lastDismissedAt && Date.now() - this.lastDismissedAt < COOLDOWN_MS) return;
     if (this.hasPrompted) return;
     if (this._userRecording) return;
 
-    const active = this._isMicActive();
-    debugLogger.debug(
-      "Mic check",
-      { active, consecutiveChecks: this.consecutiveChecks },
-      "meeting"
-    );
+    this._checking = true;
+    try {
+      const active = await this._isMicActive();
+      debugLogger.debug(
+        "Mic check",
+        { active, consecutiveChecks: this.consecutiveChecks },
+        "meeting"
+      );
 
-    if (active) {
-      this.consecutiveChecks++;
-      if (!this.audioActiveStart) this.audioActiveStart = Date.now();
+      if (active) {
+        this.consecutiveChecks++;
+        if (!this.audioActiveStart) this.audioActiveStart = Date.now();
 
-      if (this.consecutiveChecks >= SUSTAINED_THRESHOLD_CHECKS) {
-        this.hasPrompted = true;
-        const now = Date.now();
-        const durationMs = now - this.audioActiveStart;
-        debugLogger.info(
-          "Sustained audio activity detected",
-          { consecutiveChecks: this.consecutiveChecks, durationMs },
-          "meeting"
-        );
-        this.emit("sustained-audio-detected", { durationMs, detectedAt: now });
+        if (this.consecutiveChecks >= SUSTAINED_THRESHOLD_CHECKS) {
+          this.hasPrompted = true;
+          const now = Date.now();
+          const durationMs = now - this.audioActiveStart;
+          debugLogger.info(
+            "Sustained audio activity detected",
+            { consecutiveChecks: this.consecutiveChecks, durationMs },
+            "meeting"
+          );
+          this.emit("sustained-audio-detected", { durationMs, detectedAt: now });
+        }
+      } else {
+        if (this.consecutiveChecks > 0) {
+          debugLogger.debug(
+            "Mic activity reset",
+            { previousChecks: this.consecutiveChecks },
+            "meeting"
+          );
+        }
+        this.consecutiveChecks = 0;
+        this.audioActiveStart = null;
       }
-    } else {
-      if (this.consecutiveChecks > 0) {
-        debugLogger.debug(
-          "Mic activity reset",
-          { previousChecks: this.consecutiveChecks },
-          "meeting"
-        );
-      }
-      this.consecutiveChecks = 0;
-      this.audioActiveStart = null;
+    } finally {
+      this._checking = false;
     }
   }
 
-  _isMicActive() {
+  async _isMicActive() {
     switch (process.platform) {
       case "darwin":
         return this._checkDarwin();
@@ -151,11 +163,14 @@ class AudioActivityDetector extends EventEmitter {
     debugLogger.warn("macos-mic-check binary not found, falling back to ioreg", {}, "meeting");
   }
 
-  _checkDarwin() {
+  async _checkDarwin() {
     if (this._micCheckBinary) {
       try {
-        const out = execFileSync(this._micCheckBinary, [], { timeout: 3000, encoding: "utf8" });
-        return out.trim() === "true";
+        const { stdout } = await execFileAsync(this._micCheckBinary, [], {
+          timeout: 3000,
+          encoding: "utf8",
+        });
+        return stdout.trim() === "true";
       } catch (err) {
         debugLogger.debug(
           "mic-check binary failed, falling back",
@@ -166,36 +181,44 @@ class AudioActivityDetector extends EventEmitter {
     }
 
     try {
-      const out = execSync("ioreg -l -w 0 | grep '\"IOAudioEngineState\" = 1'", EXEC_OPTS);
-      return out.trim().length > 0;
-    } catch {
-      return false;
-    }
-  }
-
-  _checkWin32() {
-    try {
-      const out = execSync(
-        "powershell -NoProfile -Command \"(Get-Process -Name 'CptHost','ms-teams_modulehost','webexmeetingsapp' -ErrorAction SilentlyContinue).Count -gt 0\"",
+      const { stdout } = await execAsync(
+        "ioreg -l -w 0 | grep '\"IOAudioEngineState\" = 1'",
         EXEC_OPTS
       );
-      return out.trim() === "True";
+      return stdout.trim().length > 0;
     } catch {
       return false;
     }
   }
 
-  _checkLinux() {
+  async _checkWin32() {
     try {
-      const out = execSync("pactl list source-outputs short", EXEC_OPTS);
-      return out.trim().length > 0;
+      const { stdout } = await execAsync("tasklist /NH /FO CSV", EXEC_OPTS);
+      const lower = stdout.toLowerCase();
+      return (
+        lower.includes('"cpthost.exe"') ||
+        lower.includes('"ms-teams_modulehost.exe"') ||
+        lower.includes('"webexmeetingsapp.exe"')
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async _checkLinux() {
+    try {
+      const { stdout } = await execAsync("pactl list source-outputs short", EXEC_OPTS);
+      return stdout.trim().length > 0;
     } catch {
       // pactl unavailable, try PipeWire
     }
 
     try {
-      const out = execSync("pw-cli list-objects | grep -c 'Stream/Input/Audio'", EXEC_OPTS);
-      return parseInt(out.trim(), 10) > 0;
+      const { stdout } = await execAsync(
+        "pw-cli list-objects | grep -c 'Stream/Input/Audio'",
+        EXEC_OPTS
+      );
+      return parseInt(stdout.trim(), 10) > 0;
     } catch {
       return false;
     }

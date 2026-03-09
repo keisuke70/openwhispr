@@ -107,6 +107,7 @@ class IPCHandlers {
     this.assemblyAiStreaming = null;
     this.deepgramStreaming = null;
     this.openaiRealtimeStreaming = null;
+    this._dictationStreaming = null;
     this._autoLearnEnabled = true; // Default on, synced from renderer
     this._autoLearnDebounceTimer = null;
     this._autoLearnLatestData = null;
@@ -793,8 +794,8 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("check-accessibility-permission", async () => {
-      return this.clipboardManager.checkAccessibilityPermissions();
+    ipcMain.handle("check-accessibility-permission", async (_event, silent = false) => {
+      return this.clipboardManager.checkAccessibilityPermissions(silent);
     });
 
     ipcMain.handle("read-clipboard", async (event) => {
@@ -2211,6 +2212,12 @@ class IPCHandlers {
     };
 
     const fetchRealtimeToken = async (event, options) => {
+      if (options.mode === "byok") {
+        const apiKey = this.environmentManager.getOpenAIKey();
+        if (!apiKey) throw new Error("No OpenAI API key configured. Add your key in Settings.");
+        return apiKey;
+      }
+
       const apiUrl = getApiUrl();
       if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
 
@@ -2251,6 +2258,27 @@ class IPCHandlers {
       });
 
       return win;
+    };
+
+    const setupDictationCallbacks = (streaming, event) => {
+      streaming.onPartialTranscript = (text) =>
+        event.sender.send("dictation-realtime-partial", text);
+      streaming.onFinalTranscript = (text) => event.sender.send("dictation-realtime-final", text);
+      streaming.onError = (err) => event.sender.send("dictation-realtime-error", err.message);
+      streaming.onSessionEnd = (data) =>
+        event.sender.send("dictation-realtime-session-end", data || {});
+    };
+
+    const connectDictationStreaming = async (event, options) => {
+      if (this._dictationStreaming) {
+        await this._dictationStreaming.disconnect().catch(() => {});
+        this._dictationStreaming = null;
+      }
+      const apiKey = await fetchRealtimeToken(event, { mode: options.mode });
+      const streaming = new OpenAIRealtimeStreaming();
+      setupDictationCallbacks(streaming, event);
+      await streaming.connect({ apiKey, model: options.model || "gpt-4o-mini-transcribe" });
+      this._dictationStreaming = streaming;
     };
 
     // Pre-warm: fetch token + connect WebSocket before user hits record
@@ -2340,6 +2368,37 @@ class IPCHandlers {
         debugLogger.error("Meeting transcription stop error", { error: error.message });
         return { success: false, error: error.message };
       }
+    });
+
+    ipcMain.handle("dictation-realtime-warmup", async (event, options = {}) => {
+      try {
+        await connectDictationStreaming(event, options);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+
+    ipcMain.handle("dictation-realtime-start", async (event, options = {}) => {
+      try {
+        if (!this._dictationStreaming?.isConnected) await connectDictationStreaming(event, options);
+        return { success: true };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    });
+
+    ipcMain.on("dictation-realtime-send", (_event, buffer) => {
+      this._dictationStreaming?.sendAudio(Buffer.from(buffer));
+    });
+
+    ipcMain.handle("dictation-realtime-stop", async () => {
+      if (!this._dictationStreaming) {
+        return { success: true, text: "" };
+      }
+      const result = await this._dictationStreaming.disconnect().catch(() => ({ text: "" }));
+      this._dictationStreaming = null;
+      return { success: true, text: result.text || "" };
     });
 
     ipcMain.handle("update-transcription-text", async (_event, id, text, rawText) => {

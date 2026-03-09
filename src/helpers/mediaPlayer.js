@@ -502,11 +502,10 @@ try {
     Write-Output 'UNKNOWN'
 }`.trim();
 
-    const result = spawnSync(
-      "powershell",
-      ["-NoProfile", "-NonInteractive", "-Command", script],
-      { stdio: "pipe", timeout: 5000 }
-    );
+    const result = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], {
+      stdio: "pipe",
+      timeout: 5000,
+    });
 
     if (result.status === 0) {
       const output = (result.stdout?.toString() || "").trim();
@@ -570,7 +569,11 @@ try {
     this._didPause = false;
     const isPlaying = this._isWindowsAudioPlaying();
     if (isPlaying === false) {
-      debugLogger.debug("No audio playing, skipping media key to avoid starting playback", {}, "media");
+      debugLogger.debug(
+        "No audio playing, skipping media key to avoid starting playback",
+        {},
+        "media"
+      );
       return false;
     }
     if (isPlaying === null) {

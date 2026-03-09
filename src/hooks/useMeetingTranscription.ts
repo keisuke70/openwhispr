@@ -16,6 +16,17 @@ interface UseMeetingTranscriptionReturn {
 const MEETING_AUDIO_BUFFER_SIZE = 800;
 const MEETING_STOP_FLUSH_TIMEOUT_MS = 50;
 
+const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
+
+const getMeetingTranscriptionOptions = () => {
+  const { cloudTranscriptionMode, cloudTranscriptionModel, openaiApiKey } = getSettings();
+  const model = REALTIME_MODELS.has(cloudTranscriptionModel)
+    ? cloudTranscriptionModel
+    : "gpt-4o-mini-transcribe";
+  const mode = cloudTranscriptionMode === "byok" && !!openaiApiKey ? "byok" : "openwhispr";
+  return { provider: "openai-realtime" as const, model, mode };
+};
+
 const getMeetingWorkletBlobUrl = (() => {
   let blobUrl: string | null = null;
 
@@ -325,10 +336,9 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
 
     const promise = (async () => {
       try {
-        const result = await window.electronAPI?.meetingTranscriptionPrepare?.({
-          provider: "openai-realtime",
-          model: "gpt-4o-mini-transcribe",
-        });
+        const result = await window.electronAPI?.meetingTranscriptionPrepare?.(
+          getMeetingTranscriptionOptions()
+        );
 
         if (result?.success) {
           isPreparedRef.current = true;
@@ -378,10 +388,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
       const startTime = performance.now();
 
       const [startResult, stream, micResult] = await Promise.all([
-        window.electronAPI?.meetingTranscriptionStart?.({
-          provider: "openai-realtime",
-          model: "gpt-4o-mini-transcribe",
-        }),
+        window.electronAPI?.meetingTranscriptionStart?.(getMeetingTranscriptionOptions()),
         getSystemAudioStream(),
         getMeetingMicConstraints().then((constraints) =>
           navigator.mediaDevices.getUserMedia(constraints).catch((err) => {

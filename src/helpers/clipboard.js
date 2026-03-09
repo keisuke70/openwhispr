@@ -1460,22 +1460,27 @@ class ClipboardManager {
     throw err;
   }
 
-  async checkAccessibilityPermissions() {
+  async checkAccessibilityPermissions(silent = false) {
     if (process.platform !== "darwin") return true;
 
-    const now = Date.now();
-    if (now < this.accessibilityCache.expiresAt && this.accessibilityCache.value !== null) {
-      return this.accessibilityCache.value;
+    if (!silent) {
+      const now = Date.now();
+      if (now < this.accessibilityCache.expiresAt && this.accessibilityCache.value !== null) {
+        return this.accessibilityCache.value;
+      }
     }
 
     const allowed = systemPreferences.isTrustedAccessibilityClient(false);
-    this.accessibilityCache = {
-      value: allowed,
-      expiresAt: Date.now() + ACCESSIBILITY_CHECK_TTL_MS,
-    };
 
-    if (!allowed) {
-      this.showAccessibilityDialog("not allowed assistive access");
+    if (!silent) {
+      this.accessibilityCache = {
+        value: allowed,
+        expiresAt: Date.now() + ACCESSIBILITY_CHECK_TTL_MS,
+      };
+
+      if (!allowed) {
+        this.showAccessibilityDialog("not allowed assistive access");
+      }
     }
 
     return allowed;

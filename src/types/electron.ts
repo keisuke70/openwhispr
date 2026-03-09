@@ -446,7 +446,7 @@ declare global {
       }) => Promise<void>;
 
       // Clipboard operations
-      checkAccessibilityPermission: () => Promise<boolean>;
+      checkAccessibilityPermission: (silent?: boolean) => Promise<boolean>;
       readClipboard: () => Promise<string>;
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
       checkPasteTools: () => Promise<PasteToolsResult>;
@@ -1099,6 +1099,22 @@ declare global {
       onMeetingTranscriptionPartial?: (callback: (text: string) => void) => () => void;
       onMeetingTranscriptionFinal?: (callback: (text: string) => void) => () => void;
       onMeetingTranscriptionError?: (callback: (error: string) => void) => () => void;
+
+      // Dictation realtime streaming
+      dictationRealtimeWarmup?: (options: {
+        model?: string;
+        mode?: "byok" | "openwhispr";
+      }) => Promise<{ success: boolean; error?: string }>;
+      dictationRealtimeStart?: (options: {
+        model?: string;
+        mode?: "byok" | "openwhispr";
+      }) => Promise<{ success: boolean; error?: string }>;
+      dictationRealtimeSend?: (buffer: ArrayBuffer) => void;
+      dictationRealtimeStop?: () => Promise<{ success: boolean; text: string }>;
+      onDictationRealtimePartial?: (callback: (text: string) => void) => () => void;
+      onDictationRealtimeFinal?: (callback: (text: string) => void) => () => void;
+      onDictationRealtimeError?: (callback: (error: string) => void) => () => void;
+      onDictationRealtimeSessionEnd?: (callback: (data: { text: string }) => void) => () => void;
 
       // Desktop audio capture
       getDesktopSources?: (types: string[]) => Promise<Array<{ id: string; name: string }>>;
