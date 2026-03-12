@@ -986,7 +986,24 @@
           ],
           "cta": "Связаться с нами"
         },
-        "currentPlan": "Текущий тариф"
+        "currentPlan": "Текущий тариф",
+        "upgrade": "Улучшить план",
+        "downgrade": "Понизить план",
+        "planSwitched": "План успешно обновлён",
+        "confirmSwitch": {
+          "title": "Подтвердите смену плана",
+          "description": "Перейти на {{plan}} ({{interval}})",
+          "monthly": "ежемесячно",
+          "yearly": "ежегодно",
+          "chargeToday": "Списание сегодня",
+          "accountCredit": "Кредит на счёте",
+          "newPrice": "Новая цена",
+          "nextBilling": "Следующее списание",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "Отмена",
+          "confirm": "Подтвердить"
+        }
       },
       "signedOutPlans": {
         "button": "Создать бесплатный аккаунт"

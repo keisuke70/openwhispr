@@ -19,9 +19,7 @@ const agentOverlayImport = () => import("./components/AgentOverlay.tsx");
 const ControlPanel = React.lazy(controlPanelImport);
 const OnboardingFlow = React.lazy(onboardingFlowImport);
 const AgentOverlay = React.lazy(agentOverlayImport);
-const MeetingNotificationOverlay = React.lazy(
-  () => import("./components/MeetingNotificationOverlay.tsx")
-);
+import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.tsx";
 
 let root = null;
 
@@ -278,11 +276,7 @@ function AppRouter() {
   const isMeetingNotification = window.location.search.includes("meeting-notification=true");
 
   if (isMeetingNotification) {
-    return (
-      <Suspense fallback={<div />}>
-        <MeetingNotificationOverlay />
-      </Suspense>
-    );
+    return <MeetingNotificationOverlay />;
   }
 
   return <MainApp />;

@@ -993,7 +993,10 @@ class IPCHandlers {
         await this.whisperManager.stopServer().catch(() => {});
         return { success: true };
       } catch (error) {
-        debugLogger.error("CUDA binary download failed", { error: error.message, stack: error.stack });
+        debugLogger.error("CUDA binary download failed", {
+          error: error.message,
+          stack: error.stack,
+        });
         return { success: false, error: error.message };
       }
     });
@@ -1791,7 +1794,10 @@ class IPCHandlers {
 
         return result;
       } catch (error) {
-        debugLogger.error("Vulkan binary download failed", { error: error.message, stack: error.stack });
+        debugLogger.error("Vulkan binary download failed", {
+          error: error.message,
+          stack: error.stack,
+        });
         return { success: false, error: error.message };
       }
     });
@@ -2689,17 +2695,70 @@ class IPCHandlers {
     };
 
     ipcMain.handle("cloud-checkout", (event, opts) =>
-      fetchStripeUrl(
-        event,
-        "/api/stripe/checkout",
-        "Cloud checkout error",
-        opts || undefined
-      )
+      fetchStripeUrl(event, "/api/stripe/checkout", "Cloud checkout error", opts || undefined)
     );
 
     ipcMain.handle("cloud-billing-portal", (event) =>
       fetchStripeUrl(event, "/api/stripe/portal", "Cloud billing portal error")
     );
+
+    ipcMain.handle("cloud-switch-plan", async (event, opts) => {
+      try {
+        const apiUrl = getApiUrl();
+        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+
+        const cookieHeader = await getSessionCookies(event);
+        if (!cookieHeader) throw new Error("No session cookies available");
+
+        const response = await fetch(`${apiUrl}/api/stripe/switch-plan`, {
+          method: "POST",
+          headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+          body: JSON.stringify(opts),
+        });
+
+        if (response.status === 401) {
+          return { success: false, error: "Session expired", code: "AUTH_EXPIRED" };
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+          return { success: false, error: data.error || "Failed to switch plan" };
+        }
+        return data;
+      } catch (error) {
+        debugLogger.error(`Cloud switch plan error: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("cloud-preview-switch", async (event, opts) => {
+      try {
+        const apiUrl = getApiUrl();
+        if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+
+        const cookieHeader = await getSessionCookies(event);
+        if (!cookieHeader) throw new Error("No session cookies available");
+
+        const response = await fetch(`${apiUrl}/api/stripe/preview-switch`, {
+          method: "POST",
+          headers: { Cookie: cookieHeader, "Content-Type": "application/json" },
+          body: JSON.stringify(opts),
+        });
+
+        if (response.status === 401) {
+          return { success: false, error: "Session expired", code: "AUTH_EXPIRED" };
+        }
+
+        const data = await response.json();
+        if (!response.ok) {
+          return { success: false, error: data.error || "Failed to preview plan change" };
+        }
+        return { success: true, ...data };
+      } catch (error) {
+        debugLogger.error(`Cloud preview switch error: ${error.message}`);
+        return { success: false, error: error.message };
+      }
+    });
 
     ipcMain.handle("get-stt-config", async (event) => {
       try {

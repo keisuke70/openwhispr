@@ -962,6 +962,7 @@ class WindowManager {
         this.notificationWindow.showInactive();
       }
     };
+
     if (this.notificationWindow.webContents.isLoading()) {
       this.notificationWindow.webContents.once("did-finish-load", sendAndShow);
     } else {

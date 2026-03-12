@@ -966,7 +966,24 @@
           ],
           "cta": "お問い合わせ"
         },
-        "currentPlan": "現在のプラン"
+        "currentPlan": "現在のプラン",
+        "upgrade": "アップグレード",
+        "downgrade": "ダウングレード",
+        "planSwitched": "プランが正常に更新されました",
+        "confirmSwitch": {
+          "title": "プラン変更の確認",
+          "description": "{{plan}}（{{interval}}）に変更",
+          "monthly": "月額",
+          "yearly": "年額",
+          "chargeToday": "本日のご請求",
+          "accountCredit": "アカウントクレジット",
+          "newPrice": "新しい料金",
+          "nextBilling": "次回請求日",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "キャンセル",
+          "confirm": "確認"
+        }
       },
       "rollingWeeklyLimit": "週間利用上限（ローリング）",
       "signOut": {

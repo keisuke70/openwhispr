@@ -966,7 +966,24 @@
           ],
           "cta": "Nous contacter"
         },
-        "currentPlan": "Forfait actuel"
+        "currentPlan": "Forfait actuel",
+        "upgrade": "Passer au supérieur",
+        "downgrade": "Rétrograder",
+        "planSwitched": "Forfait mis à jour avec succès",
+        "confirmSwitch": {
+          "title": "Confirmer le changement",
+          "description": "Passer à {{plan}} ({{interval}})",
+          "monthly": "mensuel",
+          "yearly": "annuel",
+          "chargeToday": "Montant aujourd'hui",
+          "accountCredit": "Crédit sur le compte",
+          "newPrice": "Nouveau prix",
+          "nextBilling": "Prochaine facturation",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "Annuler",
+          "confirm": "Confirmer"
+        }
       },
       "rollingWeeklyLimit": "Limite hebdomadaire glissante",
       "signOut": {

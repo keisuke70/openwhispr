@@ -37,8 +37,27 @@ interface UseUsageResult {
   error: string | null;
   checkoutLoading: boolean;
   refetch: () => Promise<void>;
-  openCheckout: (opts?: { plan?: "monthly" | "annual"; tier?: "pro" | "business" }) => Promise<{ success: boolean; error?: string }>;
+  openCheckout: (opts?: {
+    plan?: "monthly" | "annual";
+    tier?: "pro" | "business";
+  }) => Promise<{ success: boolean; error?: string }>;
   openBillingPortal: () => Promise<{ success: boolean; error?: string }>;
+  switchPlan: (opts: {
+    plan: "monthly" | "annual";
+    tier: "pro" | "business";
+  }) => Promise<{ success: boolean; alreadyOnPlan?: boolean; error?: string }>;
+  previewSwitchPlan: (opts: { plan: "monthly" | "annual"; tier: "pro" | "business" }) => Promise<{
+    success: boolean;
+    immediateAmount?: number;
+    currency?: string;
+    currentPriceAmount?: number;
+    currentInterval?: string;
+    newPriceAmount?: number;
+    newInterval?: string;
+    nextBillingDate?: string;
+    alreadyOnPlan?: boolean;
+    error?: string;
+  }>;
 }
 
 const USAGE_CACHE_TTL = CACHE_CONFIG.API_KEY_TTL; // 1 hour
@@ -124,7 +143,10 @@ export function useUsage(): UseUsageResult | null {
   }, [isLoaded, isSignedIn, fetchUsage]);
 
   const openCheckout = useCallback(
-    async (opts?: { plan?: "monthly" | "annual"; tier?: "pro" | "business" }): Promise<{ success: boolean; error?: string }> => {
+    async (opts?: {
+      plan?: "monthly" | "annual";
+      tier?: "pro" | "business";
+    }): Promise<{ success: boolean; error?: string }> => {
       if (checkoutInFlightRef.current)
         return { success: false, error: "Checkout already in progress" };
       if (!window.electronAPI?.cloudCheckout || !window.electronAPI?.openExternal) {
@@ -169,6 +191,41 @@ export function useUsage(): UseUsageResult | null {
     }
   }, []);
 
+  const switchPlan = useCallback(
+    async (opts: {
+      plan: "monthly" | "annual";
+      tier: "pro" | "business";
+    }): Promise<{ success: boolean; alreadyOnPlan?: boolean; error?: string }> => {
+      if (checkoutInFlightRef.current) return { success: false, error: "Already loading" };
+      if (!window.electronAPI?.cloudSwitchPlan) {
+        return { success: false, error: "App not ready" };
+      }
+      checkoutInFlightRef.current = true;
+      setCheckoutLoading(true);
+      try {
+        const result = await window.electronAPI.cloudSwitchPlan(opts);
+        if (result.success) {
+          await fetchUsage();
+        }
+        return result;
+      } finally {
+        checkoutInFlightRef.current = false;
+        setCheckoutLoading(false);
+      }
+    },
+    [fetchUsage]
+  );
+
+  const previewSwitchPlan = useCallback(
+    async (opts: { plan: "monthly" | "annual"; tier: "pro" | "business" }) => {
+      if (!window.electronAPI?.cloudPreviewSwitch) {
+        return { success: false as const, error: "App not ready" };
+      }
+      return window.electronAPI.cloudPreviewSwitch(opts);
+    },
+    []
+  );
+
   if (!isSignedIn) return null;
 
   const wordsUsed = data?.wordsUsed ?? 0;
@@ -201,5 +258,7 @@ export function useUsage(): UseUsageResult | null {
     refetch: fetchUsage,
     openCheckout,
     openBillingPortal,
+    switchPlan,
+    previewSwitchPlan,
   };
 }

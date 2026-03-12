@@ -42,6 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "./ui/dialog";
 import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import { useSettings } from "../hooks/useSettings";
@@ -76,6 +77,9 @@ import { useUsage } from "../hooks/useUsage";
 import { cn } from "./lib/utils";
 import { startMigration, useMigration } from "../stores/noteStore.js";
 import { formatBytes } from "../utils/formatBytes";
+
+const formatAmount = (cents: number, currency: string) =>
+  (cents / 100).toLocaleString(undefined, { style: "currency", currency });
 
 export type SettingsSectionType =
   | "account"
@@ -1034,6 +1038,16 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     pro: true,
     business: true,
   });
+  const [switchPreview, setSwitchPreview] = useState<{
+    plan: "monthly" | "annual";
+    tier: "pro" | "business";
+    immediateAmount: number;
+    currency: string;
+    newPriceAmount: number;
+    newInterval: string;
+    nextBillingDate: string | null;
+  } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const startOnboarding = useCallback(() => {
     localStorage.setItem("pendingCloudMigration", "true");
@@ -1041,6 +1055,77 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     localStorage.removeItem("onboardingCompleted");
     window.location.reload();
   }, []);
+
+  const handleBillingPortal = useCallback(async () => {
+    const result = await usage.openBillingPortal();
+    if (!result.success) {
+      toast({
+        title: t("settingsPage.account.checkout.couldNotOpenTitle"),
+        description: t("settingsPage.account.checkout.couldNotOpenDescription"),
+      });
+    }
+  }, [usage, toast, t]);
+
+  const handleSwitchPlan = useCallback(
+    async (plan: "monthly" | "annual", tier: "pro" | "business") => {
+      setPreviewLoading(true);
+      try {
+        const preview = await usage.previewSwitchPlan({ plan, tier });
+        if (!preview.success) {
+          toast({
+            title: t("settingsPage.account.checkout.couldNotOpenTitle"),
+            description:
+              preview.error || t("settingsPage.account.checkout.couldNotOpenDescription"),
+          });
+          return;
+        }
+        if (preview.alreadyOnPlan) {
+          toast({ title: t("settingsPage.account.pricing.planSwitched") });
+          return;
+        }
+        setSwitchPreview({
+          plan,
+          tier,
+          immediateAmount: preview.immediateAmount ?? 0,
+          currency: preview.currency ?? "usd",
+          newPriceAmount: preview.newPriceAmount ?? 0,
+          newInterval: preview.newInterval ?? "month",
+          nextBillingDate: preview.nextBillingDate ?? null,
+        });
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [usage, toast, t]
+  );
+
+  const confirmSwitchPlan = useCallback(async () => {
+    if (!switchPreview) return;
+    const { plan, tier } = switchPreview;
+    setSwitchPreview(null);
+    const result = await usage.switchPlan({ plan, tier });
+    if (result.success) {
+      toast({ title: t("settingsPage.account.pricing.planSwitched") });
+    } else {
+      toast({
+        title: t("settingsPage.account.checkout.couldNotOpenTitle"),
+        description: result.error || t("settingsPage.account.checkout.couldNotOpenDescription"),
+      });
+    }
+  }, [switchPreview, usage, toast, t]);
+
+  const handleCheckout = useCallback(
+    async (plan: "monthly" | "annual", tier: "pro" | "business") => {
+      const result = await usage.openCheckout({ plan, tier });
+      if (!result.success) {
+        toast({
+          title: t("settingsPage.account.checkout.couldNotOpenTitle"),
+          description: t("settingsPage.account.checkout.couldNotOpenDescription"),
+        });
+      }
+    },
+    [usage, toast, t]
+  );
 
   const handleSignOut = useCallback(async () => {
     setIsSigningOut(true);
@@ -1236,13 +1321,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         </li>
                       ))}
                     </ul>
-                    {isSignedIn && !usage?.isSubscribed && !usage?.isTrial ? (
-                      <div className="mt-2 text-center">
-                        <span className="text-[9px] font-medium text-primary/70">
-                          {t("settingsPage.account.pricing.currentPlan")}
-                        </span>
-                      </div>
-                    ) : !isSignedIn ? (
+                    {!isSignedIn ? (
                       <Button
                         onClick={startOnboarding}
                         variant="outline"
@@ -1251,7 +1330,22 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       >
                         {t("settingsPage.account.signedOutPlans.button")}
                       </Button>
-                    ) : null}
+                    ) : usage?.isSubscribed && !usage?.isTrial ? (
+                      <Button
+                        onClick={handleBillingPortal}
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 w-full h-6 text-[10px]"
+                      >
+                        {t("settingsPage.account.pricing.downgrade")}
+                      </Button>
+                    ) : (
+                      <div className="mt-2 text-center">
+                        <span className="text-[9px] font-medium text-primary/70">
+                          {t("settingsPage.account.pricing.currentPlan")}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Pro */}
@@ -1267,15 +1361,21 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       {t("settingsPage.account.pricing.pro.name")}
                     </p>
                     <button
-                      onClick={() => setBillingState(prev => ({ ...prev, pro: !prev.pro }))}
+                      onClick={() => setBillingState((prev) => ({ ...prev, pro: !prev.pro }))}
                       role="switch"
                       aria-checked={billingState.pro}
                       className="flex items-center gap-1.5 mt-1"
                     >
-                      <div className={`relative w-7 h-4 rounded-full transition-colors ${billingState.pro ? "bg-primary" : "bg-muted"}`}>
-                        <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.pro ? "translate-x-3" : ""}`} />
+                      <div
+                        className={`relative w-7 h-4 rounded-full transition-colors ${billingState.pro ? "bg-primary" : "bg-muted"}`}
+                      >
+                        <div
+                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.pro ? "translate-x-3" : ""}`}
+                        />
                       </div>
-                      <span className="text-[9px] text-muted-foreground">{t("settingsPage.account.pricing.billedYearly")}</span>
+                      <span className="text-[9px] text-muted-foreground">
+                        {t("settingsPage.account.pricing.billedYearly")}
+                      </span>
                     </button>
                     <div className="flex items-baseline gap-0.5 mt-1">
                       <span className="text-lg font-bold text-foreground">
@@ -1305,24 +1405,35 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                         </li>
                       ))}
                     </ul>
-                    {(usage?.isSubscribed && usage?.plan === "pro" && !usage?.isTrial) || usage?.isTrial ? (
+                    {(usage?.isSubscribed && usage?.plan === "pro" && !usage?.isTrial) ||
+                    usage?.isTrial ? (
                       <div className="mt-2 text-center">
                         <span className="text-[9px] font-medium text-primary">
                           {t("settingsPage.account.pricing.currentPlan")}
                         </span>
                       </div>
+                    ) : usage?.isSubscribed && usage?.plan === "business" ? (
+                      <Button
+                        onClick={() =>
+                          handleSwitchPlan(billingState.pro ? "annual" : "monthly", "pro")
+                        }
+                        disabled={previewLoading || usage.checkoutLoading}
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 w-full h-6 text-[10px]"
+                      >
+                        {previewLoading ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          t("settingsPage.account.pricing.downgrade")
+                        )}
+                      </Button>
                     ) : (
                       <Button
-                        onClick={async () => {
-                          const result = await usage.openCheckout({ plan: billingState.pro ? "annual" : "monthly", tier: "pro" });
-                          if (!result.success) {
-                            toast({
-                              title: t("settingsPage.account.checkout.couldNotOpenTitle"),
-                              description: t("settingsPage.account.checkout.couldNotOpenDescription"),
-                            });
-                          }
-                        }}
-                        disabled={usage.checkoutLoading}
+                        onClick={() =>
+                          handleCheckout(billingState.pro ? "annual" : "monthly", "pro")
+                        }
+                        disabled={usage?.checkoutLoading}
                         size="sm"
                         className="mt-2 w-full h-6 text-[10px]"
                       >
@@ -1331,7 +1442,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     )}
                   </div>
 
-                  {/* Business (featured) */}
+                  {/* Business */}
                   <div className="rounded-md border-2 border-primary/50 bg-primary/8 dark:border-primary/40 dark:bg-primary/10 p-2.5 flex flex-col relative">
                     <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[8px] font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap shadow-sm">
                       {t("settingsPage.account.pricing.business.badge")}
@@ -1340,15 +1451,23 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                       {t("settingsPage.account.pricing.business.name")}
                     </p>
                     <button
-                      onClick={() => setBillingState(prev => ({ ...prev, business: !prev.business }))}
+                      onClick={() =>
+                        setBillingState((prev) => ({ ...prev, business: !prev.business }))
+                      }
                       role="switch"
                       aria-checked={billingState.business}
                       className="flex items-center gap-1.5 mt-1"
                     >
-                      <div className={`relative w-7 h-4 rounded-full transition-colors ${billingState.business ? "bg-primary" : "bg-muted"}`}>
-                        <div className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.business ? "translate-x-3" : ""}`} />
+                      <div
+                        className={`relative w-7 h-4 rounded-full transition-colors ${billingState.business ? "bg-primary" : "bg-muted"}`}
+                      >
+                        <div
+                          className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white transition-transform ${billingState.business ? "translate-x-3" : ""}`}
+                        />
                       </div>
-                      <span className="text-[9px] text-muted-foreground">{t("settingsPage.account.pricing.billedYearly")}</span>
+                      <span className="text-[9px] text-muted-foreground">
+                        {t("settingsPage.account.pricing.billedYearly")}
+                      </span>
                     </button>
                     <div className="flex items-baseline gap-0.5 mt-1">
                       <span className="text-lg font-bold text-foreground">
@@ -1384,18 +1503,27 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           {t("settingsPage.account.pricing.currentPlan")}
                         </span>
                       </div>
+                    ) : usage?.isSubscribed && usage?.plan === "pro" && !usage?.isTrial ? (
+                      <Button
+                        onClick={() =>
+                          handleSwitchPlan(billingState.business ? "annual" : "monthly", "business")
+                        }
+                        disabled={previewLoading || usage.checkoutLoading}
+                        size="sm"
+                        className="mt-2 w-full h-6 text-[10px]"
+                      >
+                        {previewLoading ? (
+                          <Loader2 size={10} className="animate-spin" />
+                        ) : (
+                          t("settingsPage.account.pricing.upgrade")
+                        )}
+                      </Button>
                     ) : (
                       <Button
-                        onClick={async () => {
-                          const result = await usage.openCheckout({ plan: billingState.business ? "annual" : "monthly", tier: "business" });
-                          if (!result.success) {
-                            toast({
-                              title: t("settingsPage.account.checkout.couldNotOpenTitle"),
-                              description: t("settingsPage.account.checkout.couldNotOpenDescription"),
-                            });
-                          }
-                        }}
-                        disabled={usage.checkoutLoading}
+                        onClick={() =>
+                          handleCheckout(billingState.business ? "annual" : "monthly", "business")
+                        }
+                        disabled={usage?.checkoutLoading}
                         size="sm"
                         className="mt-2 w-full h-6 text-[10px]"
                       >
@@ -1451,6 +1579,92 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                     </Button>
                   </div>
                 </div>
+
+                <Dialog
+                  open={!!switchPreview}
+                  onOpenChange={(open) => !open && setSwitchPreview(null)}
+                >
+                  <DialogContent className="sm:max-w-[360px]">
+                    <DialogHeader>
+                      <DialogTitle>
+                        {t("settingsPage.account.pricing.confirmSwitch.title")}
+                      </DialogTitle>
+                      <DialogDescription>
+                        {switchPreview &&
+                          t("settingsPage.account.pricing.confirmSwitch.description", {
+                            plan: switchPreview.tier === "pro" ? "Pro" : "Business",
+                            interval:
+                              switchPreview.plan === "annual"
+                                ? t("settingsPage.account.pricing.confirmSwitch.yearly")
+                                : t("settingsPage.account.pricing.confirmSwitch.monthly"),
+                          })}
+                      </DialogDescription>
+                    </DialogHeader>
+                    {switchPreview && (
+                      <div className="rounded-lg border border-border/50 dark:border-border-subtle/60 overflow-hidden">
+                        <div className="flex justify-between items-center px-3 py-2.5 bg-muted/40 dark:bg-surface-2/50">
+                          <span className="text-xs text-muted-foreground">
+                            {switchPreview.immediateAmount < 0
+                              ? t("settingsPage.account.pricing.confirmSwitch.accountCredit")
+                              : t("settingsPage.account.pricing.confirmSwitch.chargeToday")}
+                          </span>
+                          <span
+                            className={cn(
+                              "text-sm font-semibold",
+                              switchPreview.immediateAmount < 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-foreground"
+                            )}
+                          >
+                            {formatAmount(
+                              Math.abs(switchPreview.immediateAmount),
+                              switchPreview.currency
+                            )}
+                          </span>
+                        </div>
+                        <div className="divide-y divide-border/40">
+                          <div className="flex justify-between items-center px-3 py-2">
+                            <span className="text-xs text-muted-foreground">
+                              {t("settingsPage.account.pricing.confirmSwitch.newPrice")}
+                            </span>
+                            <span className="text-xs font-medium text-foreground">
+                              {formatAmount(switchPreview.newPriceAmount, switchPreview.currency)}/
+                              {switchPreview.newInterval === "year"
+                                ? t("settingsPage.account.pricing.confirmSwitch.yr")
+                                : t("settingsPage.account.pricing.confirmSwitch.mo")}
+                            </span>
+                          </div>
+                          {switchPreview.nextBillingDate && (
+                            <div className="flex justify-between items-center px-3 py-2">
+                              <span className="text-xs text-muted-foreground">
+                                {t("settingsPage.account.pricing.confirmSwitch.nextBilling")}
+                              </span>
+                              <span className="text-xs font-medium text-foreground">
+                                {new Date(switchPreview.nextBillingDate).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    <DialogFooter>
+                      <Button variant="outline" size="sm" onClick={() => setSwitchPreview(null)}>
+                        {t("settingsPage.account.pricing.confirmSwitch.cancel")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={confirmSwitchPlan}
+                        disabled={usage?.checkoutLoading}
+                      >
+                        {usage?.checkoutLoading ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          t("settingsPage.account.pricing.confirmSwitch.confirm")
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
                 {isSignedIn ? (
                   <>
@@ -1646,7 +1860,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                           ) : (
                             <Button
                               onClick={async () => {
-                                const result = await usage.openCheckout({ plan: billingState.pro ? "annual" : "monthly", tier: "pro" });
+                                const result = await usage.openCheckout({
+                                  plan: billingState.pro ? "annual" : "monthly",
+                                  tier: "pro",
+                                });
                                 if (!result.success) {
                                   toast({
                                     title: t("settingsPage.account.checkout.couldNotOpenTitle"),

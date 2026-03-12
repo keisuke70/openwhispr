@@ -986,7 +986,24 @@
           ],
           "cta": "Contattaci"
         },
-        "currentPlan": "Piano attuale"
+        "currentPlan": "Piano attuale",
+        "upgrade": "Upgrade",
+        "downgrade": "Downgrade",
+        "planSwitched": "Piano aggiornato con successo",
+        "confirmSwitch": {
+          "title": "Conferma cambio piano",
+          "description": "Passa a {{plan}} ({{interval}})",
+          "monthly": "mensile",
+          "yearly": "annuale",
+          "chargeToday": "Addebito oggi",
+          "accountCredit": "Credito sull'account",
+          "newPrice": "Nuovo prezzo",
+          "nextBilling": "Prossima fatturazione",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "Annulla",
+          "confirm": "Conferma"
+        }
       },
       "signedOutPlans": {
         "button": "Crea account gratuito"

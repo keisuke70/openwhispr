@@ -986,7 +986,24 @@
           ],
           "cta": "联系我们"
         },
-        "currentPlan": "当前套餐"
+        "currentPlan": "当前套餐",
+        "upgrade": "升级",
+        "downgrade": "降级",
+        "planSwitched": "套餐已成功更新",
+        "confirmSwitch": {
+          "title": "确认更换套餐",
+          "description": "切换至 {{plan}}（{{interval}}）",
+          "monthly": "月付",
+          "yearly": "年付",
+          "chargeToday": "今日收费",
+          "accountCredit": "账户余额",
+          "newPrice": "新价格",
+          "nextBilling": "下次计费",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "取消",
+          "confirm": "确认"
+        }
       },
       "signedOutPlans": {
         "button": "免费创建账户"

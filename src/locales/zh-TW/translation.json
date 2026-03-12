@@ -986,7 +986,24 @@
           ],
           "cta": "聯絡我們"
         },
-        "currentPlan": "目前方案"
+        "currentPlan": "目前方案",
+        "upgrade": "升級",
+        "downgrade": "降級",
+        "planSwitched": "方案已成功更新",
+        "confirmSwitch": {
+          "title": "確認更換方案",
+          "description": "切換至 {{plan}}（{{interval}}）",
+          "monthly": "月付",
+          "yearly": "年付",
+          "chargeToday": "今日收費",
+          "accountCredit": "帳戶餘額",
+          "newPrice": "新價格",
+          "nextBilling": "下次計費",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "取消",
+          "confirm": "確認"
+        }
       },
       "signedOutPlans": {
         "button": "建立免費帳號"
