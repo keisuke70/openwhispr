@@ -181,6 +181,8 @@
     "fpm": [
       "--after-install",
       "resources/linux/after-install.sh",
+      "--rpm-rpmbuild-define",
+      "_build_id_links none",
       "--rpm-tag",
       "Requires: ydotool",
       "--rpm-tag",
