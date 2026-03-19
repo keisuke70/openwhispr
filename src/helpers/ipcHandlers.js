@@ -2547,10 +2547,28 @@ class IPCHandlers {
       }
     });
 
+    let meetingSendCounts = { mic: 0, system: 0 };
     ipcMain.on("meeting-transcription-send", (_event, audioBuffer, source) => {
       const streaming = source === "mic" ? this._meetingMicStreaming : this._meetingSystemStreaming;
-      if (!streaming) return;
-      streaming.sendAudio(Buffer.from(audioBuffer));
+      if (!streaming) {
+        if (meetingSendCounts[source] === 0) {
+          debugLogger.error("Meeting audio send: no streaming instance", { source });
+        }
+        return;
+      }
+      const buf = Buffer.from(audioBuffer);
+      const sent = streaming.sendAudio(buf);
+      meetingSendCounts[source]++;
+      if (meetingSendCounts[source] <= 5 || meetingSendCounts[source] % 100 === 0) {
+        debugLogger.debug("Meeting audio send", {
+          source,
+          bytes: buf.length,
+          sent,
+          wsReady: streaming.ws?.readyState,
+          totalSent: streaming.audioBytesSent,
+          count: meetingSendCounts[source],
+        });
+      }
     });
 
     ipcMain.handle("meeting-transcription-stop", async () => {

@@ -1,5 +1,10 @@
 import logger from "./logger";
 
+// Module-level reference prevents the hidden video element from being garbage
+// collected while the capture session is active. ScreenCaptureKit on macOS
+// requires active video frame consumption to keep the loopback audio pump alive.
+let activeVideoSink: HTMLVideoElement | null = null;
+
 /**
  * Capture system audio via getDisplayMedia (ScreenCaptureKit loopback on macOS).
  * Returns a MediaStream with audio (and video tracks that must stay alive on macOS).
@@ -56,14 +61,18 @@ export async function getSystemAudioStream(): Promise<MediaStream | null> {
     // session. Without a consumer, the loopback audio track produces silence even
     // though the track is "live". Attach the stream to a hidden <video> element so
     // Chromium pulls frames and keeps the session active.
-    const videoSink = document.createElement("video");
-    videoSink.srcObject = new MediaStream(videoTracks);
-    videoSink.muted = true;
-    videoSink.play().catch(() => {});
+    // IMPORTANT: Store in module-level variable to prevent garbage collection.
+    activeVideoSink = document.createElement("video");
+    activeVideoSink.srcObject = new MediaStream(videoTracks);
+    activeVideoSink.muted = true;
+    activeVideoSink.play().catch(() => {});
 
     audioTracks[0].addEventListener("ended", () => {
       logger.error("System audio track ended unexpectedly", {}, "audio");
-      videoSink.srcObject = null;
+      if (activeVideoSink) {
+        activeVideoSink.srcObject = null;
+        activeVideoSink = null;
+      }
     });
 
     return stream;
@@ -81,4 +90,8 @@ export function stopSystemAudioStream(stream: MediaStream | null): void {
   try {
     stream.getTracks().forEach((t) => t.stop());
   } catch {}
+  if (activeVideoSink) {
+    activeVideoSink.srcObject = null;
+    activeVideoSink = null;
+  }
 }

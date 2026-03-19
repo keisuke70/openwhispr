@@ -475,14 +475,6 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
         onChunk: (chunk) => {
           if (!isRecordingRef.current) return;
           let samples = new Int16Array(chunk);
-          let hasSignal = false;
-          for (let i = 0; i < samples.length; i++) {
-            if (samples[i] !== 0) {
-              hasSignal = true;
-              break;
-            }
-          }
-          if (!hasSignal) return;
 
           // Downsample to 24kHz for the OpenAI Realtime API
           if (systemNeedsResample) {

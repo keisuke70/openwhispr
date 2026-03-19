@@ -82,7 +82,7 @@ export function MeetingTranscriptChat({
   return (
     <div
       ref={scrollRef}
-      className="h-full overflow-y-auto px-4 py-3 flex flex-col gap-1.5 agent-chat-scroll"
+      className="h-full overflow-y-auto px-4 pt-3 pb-24 flex flex-col gap-1.5 agent-chat-scroll"
     >
       {segments.map((segment, i) => {
         const isMic = segment.source === "mic";
