@@ -4,6 +4,8 @@ interface UpdateStatus {
   updateAvailable: boolean;
   updateDownloaded: boolean;
   isDevelopment: boolean;
+  updaterEnabled: boolean;
+  updaterDisabledReason: "development" | "local_build" | null;
 }
 
 interface UpdateInfo {
@@ -28,6 +30,8 @@ let globalState: UpdateState = {
     updateAvailable: false,
     updateDownloaded: false,
     isDevelopment: false,
+    updaterEnabled: true,
+    updaterDisabledReason: null,
   },
   info: null,
   downloadProgress: 0,
@@ -163,6 +167,13 @@ export function useUpdater() {
   }, []);
 
   const checkForUpdates = useCallback(async () => {
+    if (!state.status.updaterEnabled) {
+      return {
+        updateAvailable: false,
+        message: "In-app updates are disabled for this build",
+      };
+    }
+
     updateGlobalState({ isChecking: true, error: null });
     try {
       const result = await window.electronAPI.checkForUpdates();
@@ -175,9 +186,13 @@ export function useUpdater() {
       });
       throw error;
     }
-  }, []);
+  }, [state.status.updaterEnabled]);
 
   const downloadUpdate = useCallback(async () => {
+    if (!state.status.updaterEnabled) {
+      return { success: false, message: "In-app updates are disabled for this build" };
+    }
+
     if (state.status.updateDownloaded) {
       return { success: true, message: "Update already downloaded" };
     }
@@ -193,9 +208,13 @@ export function useUpdater() {
       });
       throw error;
     }
-  }, [state.status.updateDownloaded]);
+  }, [state.status.updateDownloaded, state.status.updaterEnabled]);
 
   const installUpdate = useCallback(async () => {
+    if (!state.status.updaterEnabled) {
+      return { success: false, message: "In-app updates are disabled for this build" };
+    }
+
     if (!state.status.updateDownloaded) {
       throw new Error("No update available to install");
     }
@@ -225,7 +244,7 @@ export function useUpdater() {
       });
       throw error;
     }
-  }, [state.status.updateDownloaded]);
+  }, [state.status.updateDownloaded, state.status.updaterEnabled]);
 
   const getAppVersion = useCallback(async () => {
     try {

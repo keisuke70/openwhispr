@@ -12,6 +12,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [streamingCommittedText, setStreamingCommittedText] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
@@ -87,6 +88,7 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
         if (!isStreaming) {
+          setStreamingCommittedText("");
           setPartialTranscript("");
         }
       },
@@ -104,6 +106,10 @@ export const useAudioRecording = (toast, options = {}) => {
       },
       onPartialTranscript: (text) => {
         setPartialTranscript(text);
+      },
+      onStreamingCommit: (text) => {
+        setPartialTranscript("");
+        setStreamingCommittedText((current) => `${current}${text}`);
       },
       onTranscriptionComplete: async (result) => {
         if (getSettings().pauseMediaOnDictation) {
@@ -246,7 +252,7 @@ export const useAudioRecording = (toast, options = {}) => {
         window.electronAPI?.resumeMediaPlayback?.();
       }
       if (state.isStreaming) {
-        return await audioManagerRef.current.stopStreamingRecording();
+        return await audioManagerRef.current.cancelStreamingRecording();
       }
       return audioManagerRef.current.cancelRecording();
     }
@@ -273,6 +279,7 @@ export const useAudioRecording = (toast, options = {}) => {
     isProcessing,
     isStreaming,
     transcript,
+    streamingCommittedText,
     partialTranscript,
     startRecording,
     stopRecording,

@@ -77,6 +77,40 @@ const Tooltip = ({ children, content, emoji, align = "center" }) => {
   );
 };
 
+const LiveTranscriptPanel = ({ committedText, partialText, isVisible, title, placeholder }) => {
+  if (!isVisible) return null;
+
+  const hasTranscript = committedText.trim() || partialText.trim();
+  const needsSpacer =
+    committedText &&
+    partialText &&
+    !/\s$/.test(committedText) &&
+    !/^\s/.test(partialText) &&
+    !/^[,.!?;:]/.test(partialText);
+
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute bottom-full left-1/2 mb-4 w-[680px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-[28px] border border-white/12 bg-black/74 px-6 py-5 text-left text-white shadow-2xl backdrop-blur-xl"
+    >
+      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+        <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        {title}
+      </div>
+
+      {hasTranscript ? (
+        <p className="text-[22px] font-medium leading-[1.35] tracking-[-0.01em] text-white/92">
+          {committedText && <span className="text-white/72">{committedText}</span>}
+          {needsSpacer && <span className="text-white"> </span>}
+          {partialText && <span className="text-white">{partialText}</span>}
+        </p>
+      ) : (
+        <p className="text-[18px] leading-[1.45] text-white/45">{placeholder}</p>
+      )}
+    </div>
+  );
+};
+
 export default function App() {
   const [isHovered, setIsHovered] = useState(false);
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
@@ -178,12 +212,36 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
 
+  const handleDictationToggle = React.useCallback(() => {
+    setIsCommandMenuOpen(false);
+    setWindowInteractivity(false);
+  }, [setWindowInteractivity]);
+
+  const {
+    isRecording,
+    isProcessing,
+    isStreaming,
+    streamingCommittedText,
+    partialTranscript,
+    toggleListening,
+    cancelRecording,
+    cancelProcessing,
+  } = useAudioRecording(toast, {
+    onToggle: handleDictationToggle,
+  });
+
+  const committedTranscript = streamingCommittedText;
+  const livePartialTranscript = partialTranscript;
+  const showLiveTranscriptPanel = isStreaming;
+
   useEffect(() => {
     const resizeWindow = () => {
       if (isCommandMenuOpen && toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("EXPANDED");
       } else if (isCommandMenuOpen) {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
+      } else if (showLiveTranscriptPanel) {
+        window.electronAPI?.resizeMainWindow?.("WITH_CAPTION");
       } else if (toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
       } else {
@@ -191,17 +249,7 @@ export default function App() {
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
-
-  const handleDictationToggle = React.useCallback(() => {
-    setIsCommandMenuOpen(false);
-    setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
-
-  const { isRecording, isProcessing, toggleListening, cancelRecording, cancelProcessing } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
+  }, [isCommandMenuOpen, showLiveTranscriptPanel, toastCount]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -315,7 +363,9 @@ export default function App() {
       {/* Voice button - position determined by panelStartPosition setting */}
       <div
         className={`fixed bottom-1 z-50 ${
-          panelStartPosition === "bottom-left"
+          showLiveTranscriptPanel
+            ? "left-1/2 -translate-x-1/2"
+            : panelStartPosition === "bottom-left"
             ? "left-1"
             : panelStartPosition === "center"
               ? "left-1/2 -translate-x-1/2"
@@ -335,6 +385,13 @@ export default function App() {
             }
           }}
         >
+          <LiveTranscriptPanel
+            committedText={committedTranscript}
+            partialText={livePartialTranscript}
+            isVisible={showLiveTranscriptPanel}
+            title={t("app.mic.recording")}
+            placeholder={t("listening")}
+          />
           {(isRecording || isProcessing) && isHovered && (
             <button
               aria-label={

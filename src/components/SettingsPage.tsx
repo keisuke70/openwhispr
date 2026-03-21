@@ -745,8 +745,14 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     error: updateError,
   } = useUpdater();
 
+  const isLocalBuildUpdaterDisabled =
+    !updateStatus.isDevelopment &&
+    !updateStatus.updaterEnabled &&
+    updateStatus.updaterDisabledReason === "local_build";
   const isUpdateAvailable =
-    !updateStatus.isDevelopment && (updateStatus.updateAvailable || updateStatus.updateDownloaded);
+    updateStatus.updaterEnabled &&
+    !updateStatus.isDevelopment &&
+    (updateStatus.updateAvailable || updateStatus.updateDownloaded);
 
   const migration = useMigration();
 
@@ -3399,6 +3405,8 @@ EOF`,
                     description={
                       updateStatus.isDevelopment
                         ? t("settingsPage.general.updates.devMode")
+                        : isLocalBuildUpdaterDisabled
+                          ? t("settingsPage.general.updates.localBuildDescription")
                         : isUpdateAvailable
                           ? t("settingsPage.general.updates.newVersionAvailable")
                           : t("settingsPage.general.updates.latestVersion")
@@ -3411,6 +3419,10 @@ EOF`,
                       {updateStatus.isDevelopment ? (
                         <Badge variant="warning">
                           {t("settingsPage.general.updates.badges.dev")}
+                        </Badge>
+                      ) : isLocalBuildUpdaterDisabled ? (
+                        <Badge variant="info">
+                          {t("settingsPage.general.updates.badges.localBuild")}
                         </Badge>
                       ) : isUpdateAvailable ? (
                         <Badge variant="success">
@@ -3427,33 +3439,48 @@ EOF`,
 
                 <SettingsPanelRow>
                   <div className="space-y-2.5">
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const result = await checkForUpdates();
-                          if (result && !result.updateAvailable) {
-                            toast({
-                              title: t("settingsPage.general.updates.dialogs.noUpdates.title"),
-                              description: t(
-                                "settingsPage.general.updates.dialogs.noUpdates.description"
-                              ),
-                            });
-                          }
-                        } catch {}
-                      }}
-                      disabled={checkingForUpdates || updateStatus.isDevelopment}
-                      variant="outline"
-                      className="w-full"
-                      size="sm"
-                    >
-                      <RefreshCw
-                        size={13}
-                        className={`mr-1.5 ${checkingForUpdates ? "animate-spin" : ""}`}
-                      />
-                      {checkingForUpdates
-                        ? t("settingsPage.general.updates.checking")
-                        : t("settingsPage.general.updates.checkForUpdates")}
-                    </Button>
+                    {isLocalBuildUpdaterDisabled ? (
+                      <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                        <p className="font-medium text-foreground/90">
+                          {t("settingsPage.general.updates.localBuildNotice.title")}
+                        </p>
+                        <p className="mt-1 leading-relaxed">
+                          {t("settingsPage.general.updates.localBuildNotice.description")}
+                        </p>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const result = await checkForUpdates();
+                            if (result && !result.updateAvailable) {
+                              toast({
+                                title: t("settingsPage.general.updates.dialogs.noUpdates.title"),
+                                description: t(
+                                  "settingsPage.general.updates.dialogs.noUpdates.description"
+                                ),
+                              });
+                            }
+                          } catch {}
+                        }}
+                        disabled={
+                          checkingForUpdates ||
+                          updateStatus.isDevelopment ||
+                          !updateStatus.updaterEnabled
+                        }
+                        variant="outline"
+                        className="w-full"
+                        size="sm"
+                      >
+                        <RefreshCw
+                          size={13}
+                          className={`mr-1.5 ${checkingForUpdates ? "animate-spin" : ""}`}
+                        />
+                        {checkingForUpdates
+                          ? t("settingsPage.general.updates.checking")
+                          : t("settingsPage.general.updates.checkForUpdates")}
+                      </Button>
+                    )}
 
                     {isUpdateAvailable && !updateStatus.updateDownloaded && (
                       <div className="space-y-2">

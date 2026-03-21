@@ -1242,6 +1242,7 @@
       "updates": {
         "badges": {
           "dev": "開発版",
+          "localBuild": "ローカルビルド",
           "latest": "最新",
           "update": "アップデート"
         },
@@ -1249,6 +1250,11 @@
         "checking": "確認中...",
         "currentVersion": "現在のバージョン",
         "devMode": "開発モードで実行中",
+        "localBuildDescription": "このコピーはローカルビルド版としてインストールされています",
+        "localBuildNotice": {
+          "description": "ローカルビルド版ではアプリ内アップデートを無効にしています。更新するには、最新の変更を取り込んでアプリを再ビルドしてください。",
+          "title": "アプリ内アップデートは無効です"
+        },
         "dialogs": {
           "almostThere": {
             "description": "アップデートの準備がほぼ完了しました。少々お待ちください。",

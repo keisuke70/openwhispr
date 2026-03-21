@@ -128,6 +128,8 @@ export interface UpdateStatusResult {
   updateAvailable: boolean;
   updateDownloaded: boolean;
   isDevelopment: boolean;
+  updaterEnabled: boolean;
+  updaterDisabledReason: "development" | "local_build" | null;
 }
 
 export interface UpdateInfoResult {

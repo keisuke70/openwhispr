@@ -105,8 +105,10 @@ class AudioManager {
     this.workletBlobUrl = null;
     this.streamingStartInProgress = false;
     this.stopRequestedDuringStreamingStart = false;
+    this.cancelRequestedDuringStreamingStart = false;
     this.streamingFallbackRecorder = null;
     this.streamingFallbackChunks = [];
+    this.streamingHadTranscriptActivity = false;
     this.skipReasoning = false;
     this.context = "dictation";
     this.sttConfig = null;
@@ -124,7 +126,7 @@ class AudioManager {
   getWorkletBlobUrl() {
     if (this.workletBlobUrl) return this.workletBlobUrl;
     const code = `
-const BUFFER_SIZE = 800;
+const BUFFER_SIZE = 480;
 class PCMStreamingProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -145,10 +147,16 @@ class PCMStreamingProcessor extends AudioWorkletProcessor {
   }
   process(inputs) {
     if (this._stopped) return false;
-    const input = inputs[0]?.[0];
+    const channels = inputs[0];
+    const input = channels?.[0];
     if (!input) return true;
+    const channelCount = channels.length || 1;
     for (let i = 0; i < input.length; i++) {
-      const s = Math.max(-1, Math.min(1, input[i]));
+      let mixed = 0;
+      for (let ch = 0; ch < channelCount; ch++) {
+        mixed += channels[ch]?.[i] || 0;
+      }
+      const s = Math.max(-1, Math.min(1, mixed / channelCount));
       this._buffer[this._offset++] = s < 0 ? s * 0x8000 : s * 0x7fff;
       if (this._offset >= BUFFER_SIZE) {
         this.port.postMessage(this._buffer.buffer, [this._buffer.buffer]);
@@ -2089,7 +2097,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       if (wsResult.success) {
         // Pre-load AudioWorklet module so first recording is faster
         try {
-          const audioContext = await this.getOrCreateAudioContext();
+          const audioContext = await this.getOrCreateAudioContext(this.getStreamingSampleRate());
           if (!this.workletModuleLoaded) {
             await audioContext.audioWorklet.addModule(this.getWorkletBlobUrl());
             this.workletModuleLoaded = true;
@@ -2141,15 +2149,28 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
   }
 
-  async getOrCreateAudioContext() {
+  getStreamingSampleRate() {
+    return this.getStreamingProviderName() === "openai-realtime" ? 24000 : 16000;
+  }
+
+  async getOrCreateAudioContext(sampleRate = this.getStreamingSampleRate()) {
     if (this.persistentAudioContext && this.persistentAudioContext.state !== "closed") {
-      if (this.persistentAudioContext.state === "suspended") {
-        await this.persistentAudioContext.resume();
+      if (this.persistentAudioContext.sampleRate !== sampleRate) {
+        try {
+          await this.persistentAudioContext.close();
+        } catch {}
+        this.persistentAudioContext = null;
+        this.workletModuleLoaded = false;
+      } else {
+        if (this.persistentAudioContext.state === "suspended") {
+          await this.persistentAudioContext.resume();
+        }
+        return this.persistentAudioContext;
       }
-      return this.persistentAudioContext;
     }
-    this.persistentAudioContext = new AudioContext({ sampleRate: 16000 });
+    this.persistentAudioContext = new AudioContext({ sampleRate });
     this.workletModuleLoaded = false;
+    logger.debug("Created streaming AudioContext", { sampleRate }, "streaming");
     return this.persistentAudioContext;
   }
 
@@ -2166,6 +2187,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
 
       this.stopRequestedDuringStreamingStart = false;
+      this.cancelRequestedDuringStreamingStart = false;
 
       const t0 = performance.now();
       const constraints = await this.getAudioConstraints();
@@ -2174,6 +2196,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // 1. Get mic stream (can take 10-15s on cold macOS mic driver)
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       const tMedia = performance.now();
+
+      const provider = this.getStreamingProvider();
+      const streamingSampleRate = this.getStreamingSampleRate();
 
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
@@ -2184,6 +2209,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             label: audioTrack.label,
             deviceId: settings.deviceId?.slice(0, 20) + "...",
             sampleRate: settings.sampleRate,
+            streamingSampleRate,
+            provider: this.getStreamingProviderName(),
             usedCachedId: !!this.cachedMicDeviceId,
           },
           "audio"
@@ -2205,7 +2232,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       // 2. Set up audio pipeline so frames flow the instant WebSocket is ready.
       //    Frames sent before WebSocket connects are silently dropped by sendAudio().
-      const audioContext = await this.getOrCreateAudioContext();
+      const audioContext = await this.getOrCreateAudioContext(streamingSampleRate);
       this.streamingAudioContext = audioContext;
       this.streamingSource = audioContext.createMediaStreamSource(stream);
       this.streamingStream = stream;
@@ -2216,7 +2243,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
 
       this.streamingProcessor = new AudioWorkletNode(audioContext, "pcm-streaming-processor");
-      const provider = this.getStreamingProvider();
 
       this.streamingProcessor.port.onmessage = (event) => {
         if (!this.isStreaming) return;
@@ -2246,11 +2272,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       //    events are lost during the connect handshake.
       this.streamingFinalText = "";
       this.streamingPartialText = "";
+      this.streamingHadTranscriptActivity = false;
       this.streamingTextResolve = null;
       this.streamingTextDebounce = null;
 
       const partialCleanup = provider.onPartial((text) => {
         this.streamingPartialText = text;
+        if (text?.trim()) {
+          this.streamingHadTranscriptActivity = true;
+        }
         this.onPartialTranscript?.(text);
       });
 
@@ -2260,6 +2290,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         const prevLen = this.streamingFinalText.length;
         this.streamingFinalText = text;
         this.streamingPartialText = "";
+        if (text?.trim()) {
+          this.streamingHadTranscriptActivity = true;
+        }
         const newSegment = text.slice(prevLen);
         if (newSegment) {
           this.onStreamingCommit?.(newSegment);
@@ -2328,6 +2361,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.isRecording = false;
         this.recordingStartTime = null;
         this.stopRequestedDuringStreamingStart = false;
+        this.cancelRequestedDuringStreamingStart = false;
         await this.cleanupStreaming();
         this.onStateChange?.({ isRecording: false, isProcessing: false, isStreaming: false });
         this.streamingStartInProgress = false;
@@ -2355,14 +2389,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       this.streamingStartInProgress = false;
       if (this.stopRequestedDuringStreamingStart) {
+        const shouldCancel = this.cancelRequestedDuringStreamingStart;
         this.stopRequestedDuringStreamingStart = false;
-        logger.debug("Applying deferred streaming stop requested during startup", {}, "streaming");
-        return this.stopStreamingRecording();
+        this.cancelRequestedDuringStreamingStart = false;
+        logger.debug(
+          `Applying deferred streaming ${shouldCancel ? "cancel" : "stop"} requested during startup`,
+          {},
+          "streaming"
+        );
+        return shouldCancel ? this.cancelStreamingRecording() : this.stopStreamingRecording();
       }
       return true;
     } catch (error) {
       this.streamingStartInProgress = false;
       this.stopRequestedDuringStreamingStart = false;
+      this.cancelRequestedDuringStreamingStart = false;
       logger.error("Failed to start streaming recording", { error: error.message }, "streaming");
 
       let errorTitle = "Streaming Error";
@@ -2394,6 +2435,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   async stopStreamingRecording() {
     if (this.streamingStartInProgress) {
       this.stopRequestedDuringStreamingStart = true;
+      this.cancelRequestedDuringStreamingStart = false;
       logger.debug("Streaming stop requested while start is in progress", {}, "streaming");
       return true;
     }
@@ -2488,6 +2530,28 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         { textLength: finalText.length },
         "streaming"
       );
+    }
+
+    const normalizedFinalText = (finalText || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const looksLikeAccidentalOpenWhisprHallucination =
+      !this.streamingHadTranscriptActivity &&
+      durationSeconds != null &&
+      durationSeconds < 1.5 &&
+      ["openwhispr", "open whispr", "open whisper"].includes(normalizedFinalText);
+
+    if (looksLikeAccidentalOpenWhisprHallucination) {
+      logger.info(
+        "Suppressing likely false-positive transcript for empty short dictation",
+        {
+          durationSeconds,
+          finalText,
+        },
+        "streaming"
+      );
+      finalText = "";
     }
 
     this.cleanupStreamingListeners();
@@ -2594,13 +2658,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "streaming"
       );
       try {
-        const batchResult = await this.processWithOpenWhisprCloud(fallbackBlob, {
-          durationSeconds,
-        });
+        const settings = getSettings();
+        const batchResult =
+          !settings.useLocalWhisper && settings.cloudTranscriptionMode !== "openwhispr"
+            ? await this.processWithOpenAIAPI(fallbackBlob, {
+                durationSeconds,
+              })
+            : await this.processWithOpenWhisprCloud(fallbackBlob, {
+                durationSeconds,
+              });
         if (batchResult?.text) {
           finalText = batchResult.text;
           usedBatchFallback = true;
-          logger.info("Batch fallback succeeded", { textLength: finalText.length }, "streaming");
+          logger.info(
+            "Batch fallback succeeded",
+            {
+              textLength: finalText.length,
+              source: batchResult.source,
+            },
+            "streaming"
+          );
         }
       } catch (fallbackErr) {
         logger.error("Batch fallback failed", { error: fallbackErr.message }, "streaming");
@@ -2682,6 +2759,79 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return true;
   }
 
+  async cancelStreamingRecording() {
+    if (this.streamingStartInProgress) {
+      this.stopRequestedDuringStreamingStart = true;
+      this.cancelRequestedDuringStreamingStart = true;
+      logger.debug("Streaming cancel requested while start is in progress", {}, "streaming");
+      return true;
+    }
+
+    if (!this.isStreaming) return false;
+
+    const provider = this.getStreamingProvider();
+
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.recordingStartTime = null;
+    this.isStreaming = false;
+
+    if (this.streamingFallbackRecorder?.state === "recording") {
+      try {
+        this.streamingFallbackRecorder.onstop = null;
+        this.streamingFallbackRecorder.stop();
+      } catch {}
+    }
+    this.streamingFallbackRecorder = null;
+    this.streamingFallbackChunks = [];
+
+    if (this.streamingProcessor) {
+      try {
+        this.streamingProcessor.port.onmessage = null;
+        this.streamingProcessor.disconnect();
+      } catch (e) {
+        // Ignore
+      }
+      this.streamingProcessor = null;
+    }
+
+    if (this.streamingSource) {
+      try {
+        this.streamingSource.disconnect();
+      } catch (e) {
+        // Ignore
+      }
+      this.streamingSource = null;
+    }
+
+    this.streamingAudioContext = null;
+
+    if (this.streamingStream) {
+      this.streamingStream.getTracks().forEach((track) => track.stop());
+      this.streamingStream = null;
+    }
+
+    this.cleanupSystemAudio();
+    this.cleanupStreamingListeners();
+
+    this.onStateChange?.({ isRecording: false, isProcessing: false, isStreaming: false });
+
+    try {
+      await provider.stop?.();
+    } catch (error) {
+      logger.debug("Streaming disconnect after cancel error", { error: error.message }, "streaming");
+    }
+
+    if (this.shouldUseStreaming()) {
+      this.warmupStreamingConnection().catch((e) => {
+        logger.debug("Background re-warm failed after cancel", { error: e.message }, "streaming");
+      });
+    }
+
+    logger.info("Streaming recording canceled", {}, "streaming");
+    return true;
+  }
+
   cleanupStreamingAudio() {
     if (this.streamingFallbackRecorder?.state === "recording") {
       try {
@@ -2736,6 +2886,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.streamingTextResolve = null;
     clearTimeout(this.streamingTextDebounce);
     this.streamingTextDebounce = null;
+    this.streamingHadTranscriptActivity = false;
   }
 
   async cleanupStreaming() {

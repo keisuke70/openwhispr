@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 
 class UpdateManager {
@@ -13,6 +16,8 @@ class UpdateManager {
     this.updateCheckInterval = null;
     this.windowManager = null;
     this._suppressNotification = false;
+    this.updaterEnabled = false;
+    this.updaterDisabledReason = null;
 
     this.setupAutoUpdater();
   }
@@ -26,8 +31,62 @@ class UpdateManager {
     this.windowManager = windowManager;
   }
 
-  setupAutoUpdater() {
+  resolveUpdaterAvailability() {
     if (process.env.NODE_ENV === "development") {
+      return {
+        enabled: false,
+        reason: "development",
+        detail: "Running in development mode",
+      };
+    }
+
+    const updateConfigPath = path.join(process.resourcesPath || "", "app-update.yml");
+    if (!process.resourcesPath || !fs.existsSync(updateConfigPath)) {
+      return {
+        enabled: false,
+        reason: "local_build",
+        detail: "Missing app-update.yml in app resources",
+      };
+    }
+
+    if (process.platform === "darwin") {
+      const codesign = spawnSync("/usr/bin/codesign", ["-dv", "--verbose=4", process.execPath], {
+        encoding: "utf8",
+      });
+      const output = `${codesign.stdout || ""}\n${codesign.stderr || ""}`;
+      if (/Signature=adhoc/i.test(output)) {
+        return {
+          enabled: false,
+          reason: "local_build",
+          detail: "App is ad hoc signed",
+        };
+      }
+    }
+
+    return {
+      enabled: true,
+      reason: null,
+      detail: null,
+    };
+  }
+
+  getUpdaterDisabledMessage() {
+    if (this.updaterDisabledReason === "development") {
+      return "In-app updates are disabled in development mode";
+    }
+
+    return "In-app updates are disabled for local builds. Pull the latest changes and rebuild the app instead.";
+  }
+
+  setupAutoUpdater() {
+    const availability = this.resolveUpdaterAvailability();
+    this.updaterEnabled = availability.enabled;
+    this.updaterDisabledReason = availability.reason;
+
+    if (!this.updaterEnabled) {
+      console.log(
+        `ℹ️ In-app updater disabled (${availability.reason || "unknown"}): ${availability.detail || "no additional detail"}`
+      );
       return;
     }
 
@@ -156,10 +215,10 @@ class UpdateManager {
 
   async checkForUpdates() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           updateAvailable: false,
-          message: "Update checks are disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
@@ -191,10 +250,10 @@ class UpdateManager {
 
   async downloadUpdate() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           success: false,
-          message: "Update downloads are disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
@@ -227,10 +286,10 @@ class UpdateManager {
 
   async installUpdate() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           success: false,
-          message: "Update installation is disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
@@ -287,6 +346,8 @@ class UpdateManager {
         updateAvailable: this.updateAvailable,
         updateDownloaded: this.updateDownloaded,
         isDevelopment: process.env.NODE_ENV === "development",
+        updaterEnabled: this.updaterEnabled,
+        updaterDisabledReason: this.updaterDisabledReason,
       };
     } catch (error) {
       console.error("❌ Error getting update status:", error);
@@ -304,7 +365,7 @@ class UpdateManager {
   }
 
   checkForUpdatesOnStartup() {
-    if (process.env.NODE_ENV !== "development") {
+    if (this.updaterEnabled) {
       setTimeout(() => {
         console.log("🔄 Checking for updates on startup...");
         autoUpdater.checkForUpdates().catch((err) => {

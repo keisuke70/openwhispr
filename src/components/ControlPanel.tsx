@@ -424,6 +424,10 @@ export default function ControlPanel() {
   );
 
   const handleUpdateClick = async () => {
+    if (!updateStatus.updaterEnabled) {
+      return;
+    }
+
     if (updateStatus.updateDownloaded) {
       showConfirmDialog({
         title: t("controlPanel.update.installTitle"),
@@ -579,6 +583,7 @@ export default function ControlPanel() {
             isProUser={!!(usage?.isSubscribed || usage?.isTrial)}
             usageLoaded={usage?.hasLoaded ?? false}
             updateAction={
+              updateStatus.updaterEnabled &&
               !updateStatus.isDevelopment &&
               (updateStatus.updateAvailable ||
                 updateStatus.updateDownloaded ||

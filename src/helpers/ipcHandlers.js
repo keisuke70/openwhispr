@@ -88,6 +88,8 @@ function postMultipart(url, body, boundary, headers = {}) {
   });
 }
 
+const DICTATION_WARM_CONNECTION_MAX_AGE_MS = 2 * 60 * 1000;
+
 class IPCHandlers {
   constructor(managers) {
     this.environmentManager = managers.environmentManager;
@@ -2488,6 +2490,20 @@ class IPCHandlers {
       this._dictationStreaming = streaming;
     };
 
+    const canReuseDictationStreaming = () => {
+      if (!this._dictationStreaming?.isConnected) return false;
+      const ageMs = this._dictationStreaming.sessionStartedAt
+        ? Date.now() - this._dictationStreaming.sessionStartedAt
+        : Number.POSITIVE_INFINITY;
+      if (ageMs >= DICTATION_WARM_CONNECTION_MAX_AGE_MS) {
+        debugLogger.debug("Dictation warm connection expired; reconnecting", {
+          ageMs,
+          maxAgeMs: DICTATION_WARM_CONNECTION_MAX_AGE_MS,
+        });
+      }
+      return ageMs >= 0 && ageMs < DICTATION_WARM_CONNECTION_MAX_AGE_MS;
+    };
+
     // Pre-warm: fetch tokens + connect WebSockets before user hits record
     ipcMain.handle("meeting-transcription-prepare", async (event, options = {}) => {
       if (meetingTranscriptionPrepareInProgress || meetingTranscriptionStartInProgress) {
@@ -2620,7 +2636,9 @@ class IPCHandlers {
 
     ipcMain.handle("dictation-realtime-start", async (event, options = {}) => {
       try {
-        if (!this._dictationStreaming?.isConnected) await connectDictationStreaming(event, options);
+        if (!canReuseDictationStreaming()) {
+          await connectDictationStreaming(event, options);
+        }
         return { success: true };
       } catch (err) {
         return { success: false, error: err.message };

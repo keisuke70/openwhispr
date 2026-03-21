@@ -27,6 +27,8 @@ class OpenAIRealtimeStreaming {
     this.coldStartBuffer = [];
     this.coldStartBufferSize = 0;
     this.speechStartedAt = null;
+    this.sessionStartedAt = null;
+    this.firstDeltaAt = null;
   }
 
   getFullTranscript() {
@@ -51,6 +53,8 @@ class OpenAIRealtimeStreaming {
     this.coldStartBuffer = [];
     this.coldStartBufferSize = 0;
     this.speechStartedAt = null;
+    this.sessionStartedAt = Date.now();
+    this.firstDeltaAt = null;
 
     const url = "wss://api.openai.com/v1/realtime?intent=transcription";
     debugLogger.debug("OpenAI Realtime connecting", { model: this.model });
@@ -152,8 +156,8 @@ class OpenAIRealtimeStreaming {
                   turn_detection: {
                     type: "server_vad",
                     threshold: 0.3,
-                    silence_duration_ms: 800,
-                    prefix_padding_ms: 500,
+                    silence_duration_ms: 400,
+                    prefix_padding_ms: 200,
                   },
                 },
               })
@@ -178,6 +182,17 @@ class OpenAIRealtimeStreaming {
         }
 
         case "conversation.item.input_audio_transcription.delta": {
+          if (!this.firstDeltaAt) {
+            this.firstDeltaAt = Date.now();
+            debugLogger.debug("OpenAI Realtime first delta", {
+              msSinceConnect: this.sessionStartedAt
+                ? this.firstDeltaAt - this.sessionStartedAt
+                : null,
+              msSinceSpeechStart: this.speechStartedAt
+                ? this.firstDeltaAt - this.speechStartedAt
+                : null,
+            });
+          }
           this.currentPartial += event.delta || "";
           this.onPartialTranscript?.(this.currentPartial);
           break;
@@ -203,6 +218,9 @@ class OpenAIRealtimeStreaming {
 
         case "input_audio_buffer.speech_started":
           this.speechStartedAt = Date.now();
+          debugLogger.debug("OpenAI Realtime speech started", {
+            msSinceConnect: this.sessionStartedAt ? this.speechStartedAt - this.sessionStartedAt : null,
+          });
           break;
         case "input_audio_buffer.speech_stopped":
         case "input_audio_buffer.committed":

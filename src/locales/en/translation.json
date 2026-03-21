@@ -1302,6 +1302,7 @@
       "updates": {
         "badges": {
           "dev": "Dev",
+          "localBuild": "Local build",
           "latest": "Latest",
           "update": "Update"
         },
@@ -1309,6 +1310,11 @@
         "checking": "Checking...",
         "currentVersion": "Current version",
         "devMode": "Running in development mode",
+        "localBuildDescription": "This copy was installed from a local build",
+        "localBuildNotice": {
+          "description": "In-app updates are turned off for local builds. To update this copy, pull the latest changes and rebuild the app.",
+          "title": "In-app updates disabled"
+        },
         "dialogs": {
           "almostThere": {
             "description": "The update is almost ready. Please wait a moment.",

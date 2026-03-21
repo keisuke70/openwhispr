@@ -37,6 +37,8 @@ class WindowManager {
     this._agentAnimationState = null;
     this._panelStartPosition = "bottom-right";
     this._isDictatingToggle = false;
+    this._preCaptionBounds = null;
+    this._lastMainWindowSizeKey = "BASE";
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -122,6 +124,8 @@ class WindowManager {
     const newSize = WINDOW_SIZES[sizeKey] || WINDOW_SIZES.BASE;
     const currentBounds = this.mainWindow.getBounds();
     const position = this._panelStartPosition;
+    const isCaptionMode = sizeKey === "WITH_CAPTION";
+    const wasCaptionMode = this._lastMainWindowSizeKey === "WITH_CAPTION";
 
     const display = screen.getDisplayNearestPoint({
       x: currentBounds.x + currentBounds.width / 2,
@@ -131,20 +135,31 @@ class WindowManager {
 
     let newX, newY;
 
-    if (position === "bottom-left") {
-      // Anchor bottom-left corner: keep x, expand rightward and upward
-      newX = currentBounds.x;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
-    } else if (position === "center") {
-      // Anchor bottom-center: expand symmetrically and upward
-      const centerX = currentBounds.x + currentBounds.width / 2;
-      newX = centerX - newSize.width / 2;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+    if (isCaptionMode) {
+      if (!wasCaptionMode) {
+        this._preCaptionBounds = currentBounds;
+      }
+      newX = Math.round(workArea.x + (workArea.width - newSize.width) / 2);
+      newY = Math.max(0, workArea.y + workArea.height - newSize.height - 12);
     } else {
-      // bottom-right (default): anchor bottom-right corner, expand leftward and upward
-      const bottomRightX = currentBounds.x + currentBounds.width;
-      newX = bottomRightX - newSize.width;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+      const referenceBounds =
+        wasCaptionMode && this._preCaptionBounds ? this._preCaptionBounds : currentBounds;
+
+      if (position === "bottom-left") {
+        // Anchor bottom-left corner: keep x, expand rightward and upward
+        newX = referenceBounds.x;
+        newY = referenceBounds.y + referenceBounds.height - newSize.height;
+      } else if (position === "center") {
+        // Anchor bottom-center: expand symmetrically and upward
+        const centerX = referenceBounds.x + referenceBounds.width / 2;
+        newX = centerX - newSize.width / 2;
+        newY = referenceBounds.y + referenceBounds.height - newSize.height;
+      } else {
+        // bottom-right (default): anchor bottom-right corner, expand leftward and upward
+        const bottomRightX = referenceBounds.x + referenceBounds.width;
+        newX = bottomRightX - newSize.width;
+        newY = referenceBounds.y + referenceBounds.height - newSize.height;
+      }
     }
 
     // Clamp to work area
@@ -157,6 +172,11 @@ class WindowManager {
       width: newSize.width,
       height: newSize.height,
     });
+
+    this._lastMainWindowSizeKey = sizeKey;
+    if (!isCaptionMode) {
+      this._preCaptionBounds = null;
+    }
 
     return { success: true, bounds: { x: newX, y: newY, ...newSize } };
   }
