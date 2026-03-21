@@ -1,7 +1,13 @@
 const path = require("path");
 
+const isGnomeWayland =
+  process.platform === "linux" &&
+  process.env.XDG_SESSION_TYPE === "wayland" &&
+  /gnome|ubuntu|unity/i.test(process.env.XDG_CURRENT_DESKTOP || "");
+
 const WINDOW_SIZES = {
   BASE: { width: 96, height: 96 },
+  WITH_CAPTION: { width: 760, height: 240 },
   WITH_MENU: { width: 240, height: 280 },
   WITH_TOAST: { width: 400, height: 500 },
   EXPANDED: { width: 400, height: 500 },
@@ -22,20 +28,28 @@ const MAIN_WINDOW_CONFIG = {
   alwaysOnTop: true,
   resizable: false,
   transparent: true,
-  show: false, // Start hidden, show after setup
-  skipTaskbar: false, // Keep visible in Dock/taskbar so app stays discoverable
+  show: false,
+  skipTaskbar: true,
   focusable: true,
   visibleOnAllWorkspaces: process.platform !== "win32",
   fullScreenable: false,
-  hasShadow: false, // Remove shadow for cleaner look
-  acceptsFirstMouse: true, // Accept clicks even when not focused
-  type: process.platform === "darwin" ? "panel" : "normal", // Panel on macOS preserves floating behavior
+  hasShadow: false,
+  acceptsFirstMouse: true,
+  type:
+    process.platform === "darwin"
+      ? "panel"
+      : process.platform === "linux"
+        ? isGnomeWayland
+          ? "normal"
+          : "toolbar"
+        : "normal",
 };
 
 // Control panel window configuration
 const CONTROL_PANEL_CONFIG = {
   width: 1200,
   height: 800,
+  backgroundColor: "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -49,6 +63,7 @@ const CONTROL_PANEL_CONFIG = {
     // directly from the browser. These would be blocked by CORS otherwise.
     webSecurity: false,
     spellcheck: false,
+    backgroundThrottling: false,
   },
   title: "Control Panel",
   resizable: true,
@@ -69,13 +84,57 @@ const CONTROL_PANEL_CONFIG = {
   type: "normal",
 };
 
+const NOTIFICATION_WINDOW_CONFIG = {
+  width: 380,
+  height: 88,
+  frame: false,
+  transparent: true,
+  alwaysOnTop: true,
+  skipTaskbar: true,
+  resizable: false,
+  focusable: false,
+  hasShadow: false,
+  show: false,
+  webPreferences: {
+    preload: path.join(__dirname, "..", "..", "preload.js"),
+    nodeIntegration: false,
+    contextIsolation: true,
+    sandbox: true,
+  },
+  visibleOnAllWorkspaces: process.platform !== "win32",
+  type:
+    process.platform === "darwin" ? "panel" : process.platform === "linux" ? "toolbar" : "normal",
+};
+
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null) {
+  static getMainWindowPosition(display, customSize = null, position = "bottom-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    const MARGIN = 24;
+    const MARGIN = 4;
+    const workArea = display.workArea || display.bounds;
+
+    let x, y;
+    if (position === "bottom-left") {
+      x = workArea.x + MARGIN;
+      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
+    } else if (position === "center") {
+      x = Math.round(workArea.x + (workArea.width - width) / 2);
+      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
+    } else {
+      // bottom-right (default)
+      x = Math.max(0, workArea.x + workArea.width - width - MARGIN);
+      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
+    }
+
+    return { x, y, width, height };
+  }
+
+  static getNotificationPosition(display) {
+    const width = 380;
+    const height = 88;
+    const MARGIN = 16;
     const workArea = display.workArea || display.bounds;
     const x = Math.max(0, workArea.x + workArea.width - width - MARGIN);
-    const y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
+    const y = Math.max(0, workArea.y + MARGIN);
     return { x, y, width, height };
   }
 
@@ -95,15 +154,50 @@ class WindowPositionUtil {
       }
     } else if (process.platform === "win32") {
       window.setAlwaysOnTop(true, "pop-up-menu");
+    } else if (isGnomeWayland) {
+      window.setAlwaysOnTop(true, "floating");
     } else {
       window.setAlwaysOnTop(true, "screen-saver");
     }
   }
 }
 
+const AGENT_OVERLAY_CONFIG = {
+  width: 420,
+  height: 300,
+  minWidth: 360,
+  minHeight: 200,
+  maxWidth: 800,
+  maxHeight: 10000,
+  frame: false,
+  alwaysOnTop: true,
+  transparent: true,
+  show: false,
+  skipTaskbar: true,
+  hasShadow: false,
+  focusable: true,
+  resizable: false,
+  fullScreenable: false,
+  acceptsFirstMouse: true,
+  type:
+    process.platform === "darwin" ? "panel" : process.platform === "linux" ? "toolbar" : "normal",
+  visibleOnAllWorkspaces: process.platform !== "win32",
+  webPreferences: {
+    preload: path.join(__dirname, "..", "..", "preload.js"),
+    nodeIntegration: false,
+    contextIsolation: true,
+    sandbox: false,
+    webSecurity: false,
+    spellcheck: false,
+    backgroundThrottling: false,
+  },
+};
+
 module.exports = {
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
+  AGENT_OVERLAY_CONFIG,
+  NOTIFICATION_WINDOW_CONFIG,
   WINDOW_SIZES,
   WindowPositionUtil,
 };

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const {
   downloadFile,
   findBinaryInDir,
@@ -50,18 +50,12 @@ function getDownloadUrl(archiveName) {
 
 function extractTarBz2(archivePath, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
-  // On Windows, convert paths to forward slashes to avoid tar interpreting
-  // drive letters (e.g. C:) as remote host prefixes
-  const archiveArg =
-    process.platform === "win32"
-      ? archivePath.replace(/\\/g, "/")
-      : archivePath;
-  const destArg =
-    process.platform === "win32" ? destDir.replace(/\\/g, "/") : destDir;
-  // --force-local prevents tar from interpreting colons in paths as remote hosts
-  const forceLocal = process.platform === "win32" ? " --force-local" : "";
-  execSync(`tar -xjf "${archiveArg}" -C "${destArg}"${forceLocal}`, {
+  // Use relative paths from archive dir as cwd, so neither -f nor -C args
+  // contain Windows drive letter colons (GNU tar treats C: as remote host)
+  const cwd = path.dirname(archivePath);
+  execFileSync("tar", ["-xjf", path.basename(archivePath), "-C", path.relative(cwd, destDir)], {
     stdio: "inherit",
+    cwd,
   });
 }
 
@@ -162,7 +156,11 @@ async function downloadBinary(platformArch, config, isForce = false) {
           for (const [baseName, versionedName] of versionedLibs) {
             const basePath = path.join(BIN_DIR, baseName);
             const versionedPath = path.join(BIN_DIR, versionedName);
-            if (fs.existsSync(basePath) && fs.existsSync(versionedPath) && !fs.lstatSync(basePath).isSymbolicLink()) {
+            if (
+              fs.existsSync(basePath) &&
+              fs.existsSync(versionedPath) &&
+              !fs.lstatSync(basePath).isSymbolicLink()
+            ) {
               fs.unlinkSync(basePath);
               fs.symlinkSync(versionedName, basePath);
               console.log(`  ${platformArch}: Symlinked ${baseName} -> ${versionedName}`);
@@ -209,10 +207,9 @@ async function main() {
     }
 
     // Remove old CLI-style binaries replaced by WS server binaries
-    const oldBinaryName =
-      args.platformArch.startsWith("win32")
-        ? `sherpa-onnx-${args.platformArch}.exe`
-        : `sherpa-onnx-${args.platformArch}`;
+    const oldBinaryName = args.platformArch.startsWith("win32")
+      ? `sherpa-onnx-${args.platformArch}.exe`
+      : `sherpa-onnx-${args.platformArch}`;
     const oldBinaryPath = path.join(BIN_DIR, oldBinaryName);
     if (fs.existsSync(oldBinaryPath)) {
       console.log(`  Removing old CLI binary: ${oldBinaryName}`);
@@ -240,7 +237,9 @@ async function main() {
     });
   } else {
     console.log("No binaries downloaded yet.");
-    console.log(`\nCheck: https://github.com/k2-fsa/sherpa-onnx/releases/tag/v${SHERPA_ONNX_VERSION}`);
+    console.log(
+      `\nCheck: https://github.com/k2-fsa/sherpa-onnx/releases/tag/v${SHERPA_ONNX_VERSION}`
+    );
   }
 }
 

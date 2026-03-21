@@ -1,36 +1,4 @@
 {
-  "app": {
-    "name": "OpenWhispr",
-    "loading": "Загрузка OpenWhispr...",
-    "oauth": {
-      "redirectTitle": "Перенаправление в OpenWhispr",
-      "closeTab": "Можете закрыть эту вкладку"
-    },
-    "buttons": {
-      "cancelRecording": "Отменить запись",
-      "cancelProcessing": "Отменить обработку"
-    },
-    "mic": {
-      "hotkeyToSpeak": "[{{hotkey}}] для диктовки",
-      "recording": "Запись...",
-      "processing": "Обработка...",
-      "clickToSpeak": "Нажмите для диктовки"
-    },
-    "toasts": {
-      "hotkeyChanged": {
-        "title": "Горячая клавиша изменена"
-      },
-      "hotkeyUnavailable": {
-        "title": "Горячая клавиша недоступна",
-        "description": "Не удалось зарегистрировать горячую клавишу. Выберите другую в настройках."
-      }
-    },
-    "commandMenu": {
-      "startListening": "Начать прослушивание",
-      "stopListening": "Остановить прослушивание",
-      "hideForNow": "Скрыть"
-    }
-  },
   "settings": {
     "language": {
       "sectionTitle": "Язык",
@@ -38,19 +6,7 @@
       "uiLabel": "Язык интерфейса",
       "uiDescription": "Выберите язык интерфейса OpenWhispr",
       "transcriptionLabel": "Язык транскрипции",
-      "transcriptionDescription": "Выберите язык, на котором вы говорите, для более точной транскрипции",
-      "uiOption": {
-        "en": "English",
-        "es": "Espanol",
-        "fr": "Francais",
-        "de": "Deutsch",
-        "pt": "Portugues",
-        "it": "Italiano",
-        "zh-CN": "简体中文",
-        "zh-TW": "繁體中文",
-        "ru": "Русский",
-        "ja": "日本語"
-      }
+      "transcriptionDescription": "Выберите язык, на котором вы говорите, для более точной транскрипции"
     }
   },
   "tray": {
@@ -73,7 +29,8 @@
   },
   "window": {
     "voiceRecorderTitle": "Диктофон",
-    "controlPanelTitle": "Панель управления"
+    "controlPanelTitle": "Панель управления",
+    "agentChatTitle": "Чат агента"
   },
   "dialog": {
     "openLink": {
@@ -114,7 +71,8 @@
       "alreadyRegistered": "«{{hotkey}}» уже зарегистрирована другим приложением.",
       "osReserved": "«{{hotkey}}» может быть зарезервирована вашей операционной системой.",
       "registrationFailed": "Не удалось зарегистрировать «{{hotkey}}». Возможно, она используется другим приложением.",
-      "trySuggestions": "Попробуйте: {{suggestions}}"
+      "trySuggestions": "Попробуйте: {{suggestions}}",
+      "slotConflict": "Эта горячая клавиша уже используется для {{slot}}."
     }
   },
   "systemSettings": {
@@ -137,7 +95,7 @@
     "updatePayment": "Обновить способ оплаты",
     "updatePaymentDescription": "Вернитесь к безлимитным Pro-транскрипциям.",
     "upgradeToPro": "Перейти на Pro",
-    "upgradeDescription": "Безлимитные транскрипции. $9/мес.",
+    "upgradeDescription": "Безлимитные транскрипции от $8/мес.",
     "useApiKey": "Использовать свой API-ключ",
     "useApiKeyDescription": "Свой ключ — без ограничений.",
     "switchToLocal": "Перейти на локальный режим",
@@ -172,10 +130,10 @@
     "availableModels": "Доступные модели",
     "fast": "Быстрый",
     "hold": "Удержание",
-    "less": "Меньше",
-    "more": "Больше",
     "private": "Приватный",
-    "tap": "Нажатие"
+    "tap": "Нажатие",
+    "close": "Закрыть",
+    "dismiss": "Скрыть"
   },
   "onboarding": {
     "steps": {
@@ -196,13 +154,19 @@
     "permissions": {
       "title": "Разрешения",
       "microphoneTitle": "Микрофон",
-      "microphoneDescription": "Для записи голоса",
+      "microphoneDescription": "Записывает ваш голос для транскрипции",
       "grant": "Предоставить",
       "accessibilityTitle": "Универсальный доступ",
-      "accessibilityDescription": "Для вставки текста в приложения",
+      "accessibilityDescription": "Включите в Системных настройках",
       "testAndGrant": "Проверить и предоставить",
       "requiredForApp": "Необходимо для работы OpenWhispr",
-      "microphoneRequired": "Требуется доступ к микрофону"
+      "microphoneRequired": "Требуется доступ к микрофону",
+      "openSystemSettings": "Открыть Системные настройки",
+      "systemAudioTitle": "Системное аудио",
+      "systemAudioDescription": "Записывает аудио других участников звонков и совещаний. Мы никогда не записываем ваш экран.",
+      "optional": "Необязательно",
+      "recommended": "Рекомендуется",
+      "accessibilityTroubleshooting": "Не обнаружено? Удалите OpenWhispr из раздела Универсальный доступ в Системных настройках, добавьте его снова и включите. Вы можете пропустить это — текст будет копироваться в буфер обмена вместо автоматической вставки."
     },
     "transcription": {
       "title": "Настройка транскрипции",
@@ -242,6 +206,10 @@
       "weeklyTitle": "Недельный лимит достигнут",
       "weeklyDescription": "Ваш лимит обновляется на скользящей основе. Перейдите на Pro или используйте свой API-ключ для безлимитного использования."
     },
+    "accessibilityMissing": {
+      "title": "Необходимы разрешения универсального доступа",
+      "description": "Мы обнаружили, что OpenWhispr нуждается в разрешениях универсального доступа для корректной работы. Включите их ниже."
+    },
     "billing": {
       "pastDueTitle": "Не удалось обработать платёж",
       "pastDueDescription": "Не волнуйтесь — сейчас вы на бесплатном плане. Обновите способ оплаты в настройках, чтобы вернуться к Pro.",
@@ -249,30 +217,35 @@
       "updatePayment": "Обновить платёж"
     },
     "history": {
-      "title": "Транскрипции",
       "couldNotLoadTitle": "Не удалось загрузить историю",
       "couldNotLoadDescription": "Произошла ошибка при загрузке транскрипций. Попробуйте закрыть и снова открыть приложение.",
       "copiedTitle": "Скопировано!",
       "copiedDescription": "Текст скопирован в буфер обмена",
       "couldNotCopyTitle": "Не удалось скопировать",
       "couldNotCopyDescription": "Произошла ошибка при копировании в буфер обмена. Попробуйте снова.",
-      "clearTitle": "Очистить историю",
-      "clearDescription": "Все ваши транскрипции будут удалены. Это действие нельзя отменить.",
-      "clearedTitle": "История очищена",
-      "clearedDescription_one": "{{count}} транскрипция удалена",
-      "clearedDescription_few": "{{count}} транскрипции удалены",
-      "clearedDescription_many": "{{count}} транскрипций удалено",
-      "couldNotClearTitle": "Не удалось очистить историю",
-      "couldNotClearDescription": "Что-то пошло не так. Попробуйте снова.",
       "deleteTitle": "Удалить транскрипцию",
       "deleteDescription": "Эта транскрипция будет удалена безвозвратно.",
       "couldNotDeleteTitle": "Не удалось удалить",
       "couldNotDeleteDescription": "Эта транскрипция, возможно, уже была удалена.",
       "couldNotDeleteDescriptionGeneric": "Что-то пошло не так. Попробуйте снова.",
-      "clear": "Очистить",
       "empty": "Транскрипций пока нет",
+      "dataRetentionDisabled": "Хранение данных отключено. Транскрипции и аудио не сохраняются в истории.",
       "press": "Нажмите",
-      "toStart": "чтобы начать"
+      "toStart": "чтобы начать",
+      "dateGroups": {
+        "today": "Сегодня",
+        "yesterday": "Вчера"
+      },
+      "transcriptionFailed": "Транскрипция не удалась",
+      "failedCtaSettings": "Настройте провайдер транскрипции",
+      "failedCtaAndRetry": "затем нажмите повторить",
+      "failedCtaSettingsOnly": "Настройте провайдер транскрипции в Настройках",
+      "clearAll": "Очистить все",
+      "clearAllTitle": "Очистить все транскрипции",
+      "clearAllDescription": "Все транскрипции и аудиофайлы будут безвозвратно удалены.",
+      "clearAllSuccess": "История очищена",
+      "clearAllErrorTitle": "Не удалось очистить историю",
+      "clearAllErrorDescription": "Что-то пошло не так. Попробуйте ещё раз."
     },
     "cloudMigration": {
       "title": "Добро пожаловать в OpenWhispr Pro",
@@ -284,7 +257,13 @@
       "description": "Автоматически исправляйте грамматику, пунктуацию и форматирование прямо во время диктовки.",
       "enable": "Включить ИИ-улучшение"
     },
-    "loading": "Загрузка..."
+    "loading": "Загрузка...",
+    "gpu": {
+      "bannerTitle": "Доступно ускорение GPU",
+      "bannerDescription": "Включите ускорение GPU для повышения производительности.",
+      "enableButton": "Включить GPU",
+      "dismissButton": "Не сейчас"
+    }
   },
   "reasoning": {
     "mode": {
@@ -293,8 +272,6 @@
       "localDescription": "Работает на вашем устройстве. Полная приватность, работает офлайн.",
       "cloudDescription": "Продвинутые модели через API. Быстро и мощно, требуется интернет."
     },
-    "enableTitle": "Включить ИИ-улучшение текста",
-    "enableDescription": "Используйте ИИ для автоматического повышения качества транскрипций",
     "custom": {
       "endpointWithProtocol": "Введите полный базовый URL, включая протокол (например, https://server/v1).",
       "httpsRequired": "Требуется HTTPS (HTTP допускается только для локальной сети).",
@@ -537,7 +514,8 @@
       "continueWithGoogle": "Продолжить с Google"
     },
     "welcomeSubtitle": "Диктуйте где угодно голосом",
-    "welcomeTitle": "Добро пожаловать в OpenWhispr"
+    "welcomeTitle": "Добро пожаловать в OpenWhispr",
+    "sessionExpired": "Сессия истекла. Пожалуйста, войдите снова."
   },
   "cleanupPrompt": "Очистка",
   "developerSection": {
@@ -641,7 +619,7 @@
     },
     "title": "Сброс пароля"
   },
-  "fullPrompt": "Полный промпт",
+  "actionPrompt": "Промпт действия",
   "hotkeyGuidance": {
     "blockedDescription": "Эти сочетания заблокированы, так как часто используются системой.",
     "blockedTitle": "Заблокированные сочетания",
@@ -722,7 +700,7 @@
     "selectPlaceholder": "Выберите микрофон",
     "systemDefault": "Системный по умолчанию",
     "unknownDevice": "Неизвестное устройство",
-    "using": "Используется:"
+    "using": "Используется: {{device}}"
   },
   "pasteToolsInfo": {
     "checking": "Проверка системных возможностей...",
@@ -797,7 +775,8 @@
       "processing": "Обработка...",
       "openwhisprCloud": "OpenWhispr Cloud",
       "providerLabel": "Провайдер",
-      "run": "Запустить тест"
+      "run": "Запустить тест",
+      "customEndpoint": "Пользовательская конечная точка"
     },
     "view": {
       "customPrompt": "Пользовательский промпт",
@@ -838,52 +817,47 @@
   },
   "settingsModal": {
     "groups": {
+      "account": "Аккаунт",
       "app": "Приложение",
-      "intelligence": "Интеллект",
-      "profile": "Профиль",
-      "speech": "Речь",
+      "speechAi": "Речь и ИИ",
       "system": "Система"
     },
     "sections": {
       "account": {
-        "description": "Вход и использование",
+        "description": "Профиль и вход",
         "label": "Аккаунт"
       },
-      "agentConfig": {
-        "description": "Настройка голосового агента",
-        "label": "Агент"
-      },
-      "aiModels": {
-        "description": "Очистка и улучшение текста",
-        "label": "ИИ-модели"
-      },
-      "developer": {
-        "description": "Логи, диагностика и данные",
-        "label": "Разработчик"
-      },
-      "dictionary": {
-        "description": "Пользовательские слова и фразы",
-        "label": "Словарь"
+      "plansBilling": {
+        "description": "Тарифы, использование и оплата",
+        "label": "Тарифы и оплата"
       },
       "general": {
-        "description": "Внешний вид, горячая клавиша и автозапуск",
+        "description": "Внешний вид, звуки и автозапуск",
         "label": "Настройки"
       },
-      "permissions": {
-        "description": "Микрофон и универсальный доступ",
-        "label": "Разрешения"
-      },
-      "privacy": {
-        "description": "Облачное резервное копирование и аналитика",
-        "label": "Конфиденциальность"
-      },
-      "prompts": {
-        "description": "Студия системных промптов",
-        "label": "Промпты"
+      "hotkeys": {
+        "description": "Горячая клавиша диктовки и активация",
+        "label": "Горячие клавиши"
       },
       "transcription": {
         "description": "Движок распознавания речи",
         "label": "Транскрипция"
+      },
+      "intelligence": {
+        "description": "ИИ-модели, агент и промпты",
+        "label": "Интеллект"
+      },
+      "privacyData": {
+        "description": "Конфиденциальность, разрешения и аналитика",
+        "label": "Конфиденциальность и данные"
+      },
+      "system": {
+        "description": "Обновления, хранилище и инструменты разработчика",
+        "label": "Система"
+      },
+      "agentMode": {
+        "label": "Режим агента",
+        "description": "Голосовой чат-ассистент"
       }
     },
     "title": "Настройки"
@@ -895,6 +869,7 @@
         "limitReached": "Лимит достигнут",
         "pastDue": "Просрочен",
         "pro": "Pro",
+        "business": "Business",
         "trial": "Пробный"
       },
       "billing": {
@@ -931,6 +906,7 @@
       "planLabels": {
         "free": "Бесплатный",
         "pro": "Pro",
+        "business": "Business",
         "trial": "Пробный"
       },
       "planTitle": "Тариф",
@@ -954,8 +930,112 @@
         "description": "Безлимитные транскрипции, приоритетная обработка и многое другое.",
         "title": "Попробуйте Pro бесплатно на 7 дней"
       },
+      "pricing": {
+        "title": "Тарифы",
+        "billedYearly": "Годовая оплата",
+        "free": {
+          "name": "Free",
+          "price": "$0",
+          "period": "навсегда",
+          "features": [
+            "## OpenWhispr Cloud",
+            "2,000 words/week transcription",
+            "5 hours of meeting recordings/month",
+            "## Always free",
+            "Unlimited local AI models",
+            "Unlimited cloud transcription with your own API keys",
+            "100+ languages supported",
+            "Custom dictionary",
+            "Zero data retention",
+            "Community support"
+          ]
+        },
+        "pro": {
+          "name": "Pro",
+          "monthlyPrice": "$8",
+          "monthlyPeriod": "/мес.",
+          "annualPrice": "$80",
+          "annualPeriod": "/год",
+          "annualEquivalent": "$6.67",
+          "includesPrefix": "Все функции Free +",
+          "features": [
+            "Unlimited cloud transcription",
+            "20 hours of meeting recordings/month",
+            "Mobile app (iOS Coming Soon)",
+            "Email support"
+          ],
+          "cta": "Начать",
+          "switchToAnnual": "Перейти на годовой"
+        },
+        "business": {
+          "name": "Business",
+          "monthlyPrice": "$20",
+          "monthlyPeriod": "/мес.",
+          "annualPrice": "$200",
+          "annualPeriod": "/год",
+          "annualEquivalent": "$16.67",
+          "includesPrefix": "Все функции Pro +",
+          "badge": "Самый популярный",
+          "features": [
+            "Unlimited meeting recordings",
+            "Agent mode",
+            "Chat over your data (Coming Soon)",
+            "Priority support"
+          ],
+          "cta": "Начать",
+          "switchToAnnual": "Перейти на годовой"
+        },
+        "enterprise": {
+          "name": "Enterprise",
+          "price": "Индивидуально",
+          "subtitle": "For advanced security & support",
+          "includesPrefix": "Все функции Business +",
+          "features": [
+            "Managed API credits",
+            "Cloud sync across devices",
+            "Team features & admin",
+            "SSO & compliance",
+            "Dedicated support"
+          ],
+          "cta": "Contact Sales"
+        },
+        "currentPlan": "Текущий тариф",
+        "upgrade": "Улучшить план",
+        "downgrade": "Понизить план",
+        "planSwitched": "План успешно обновлён",
+        "confirmSwitch": {
+          "title": "Подтвердите смену плана",
+          "description": "Перейти на {{plan}} ({{interval}})",
+          "monthly": "ежемесячно",
+          "yearly": "ежегодно",
+          "chargeToday": "Списание сегодня",
+          "accountCredit": "Кредит на счёте",
+          "newPrice": "Новая цена",
+          "nextBilling": "Следующее списание",
+          "mo": "mo",
+          "yr": "yr",
+          "cancel": "Отмена",
+          "confirm": "Подтвердить"
+        }
+      },
+      "signedOutPlans": {
+        "button": "Создать бесплатный аккаунт"
+      },
       "user": "Пользователь",
-      "wordsRemaining": "Осталось {{remaining}}"
+      "wordsRemaining": "Осталось {{remaining}}",
+      "deleteAccount": {
+        "label": "Удалить аккаунт",
+        "labelDescription": "Навсегда удалить ваш аккаунт, все облачные и локальные данные. Это действие нельзя отменить.",
+        "button": "Удалить мой аккаунт",
+        "deleting": "Удаление...",
+        "title": "Удалить ваш аккаунт?",
+        "description": "Это навсегда удалит ваш аккаунт OpenWhispr, все синхронизированные облачные заметки и все локальные данные, включая транскрипции, аудиозаписи, загруженные модели, подключения календаря и настройки. Это действие нельзя отменить.",
+        "confirmText": "Удалить всё",
+        "successTitle": "Аккаунт удалён",
+        "successDescription": "Ваш аккаунт и все данные были удалены. Приложение сейчас перезагрузится.",
+        "failedTitle": "Ошибка удаления",
+        "failedDescription": "Что-то пошло не так при удалении вашего аккаунта. Ваши локальные данные могли быть частично удалены. Попробуйте снова."
+      }
     },
     "agentConfig": {
       "agentName": "Имя агента",
@@ -973,7 +1053,12 @@
       "instructionMode": "Инструкция",
       "placeholder": "например, Джарвис, Нова, Атлас...",
       "save": "Сохранить",
-      "title": "Голосовой агент"
+      "title": "Голосовой агент",
+      "examples": {
+        "formalEmail": "Hey {{agentName}}, напиши официальное письмо о бюджете",
+        "professional": "Hey {{agentName}}, сделай это более профессиональным",
+        "bulletPoints": "Hey {{agentName}}, преобразуй это в маркированный список"
+      }
     },
     "aiModels": {
       "customSetup": "Пользовательская настройка",
@@ -1014,7 +1099,7 @@
       "removing": "Удаление...",
       "resetAll": {
         "confirmText": "Удалить всё",
-        "description": "Все настройки, транскрипции и кешированные данные будут безвозвратно удалены. Приложение перезагрузится после сброса.",
+        "description": "Это навсегда удалит все локальные настройки, транскрипции, аудиозаписи, загруженные модели ИИ, подключения календаря и кэшированные данные. Облачные данные и ваш аккаунт не будут затронуты. Приложение перезагрузится после сброса.",
         "failedDescription": "Что-то пошло не так. Попробуйте ещё раз или переустановите приложение.",
         "failedTitle": "Не удалось сбросить",
         "successDescription": "Всё сброшено. Приложение сейчас перезагрузится.",
@@ -1022,27 +1107,29 @@
         "title": "Сбросить все данные приложения"
       },
       "resetAppData": "Сбросить данные приложения",
-      "resetAppDataDescription": "Безвозвратно удалить все настройки, транскрипции и кешированные данные"
+      "resetAppDataDescription": "Навсегда удалить все локальные настройки, транскрипции, аудиозаписи, загруженные модели и кэшированные данные"
     },
     "dictionary": {
-      "add": "Добавить",
-      "addWordOrPhrase": "Добавить слово или фразу",
-      "agentNameAutoManaged": "Имя агента (управляется автоматически)",
-      "clearAll": "Очистить всё",
-      "clearDictionaryDescription": "Все слова из пользовательского словаря будут удалены. Это действие нельзя отменить.",
-      "clearDictionaryTitle": "Очистить словарь?",
-      "description": "Добавляйте слова, имена или технические термины для повышения точности транскрипции",
-      "howItWorksDescription": "Добавленные слова включаются в промпт ИИ, чтобы модель распознавала и сохраняла эти термины при очистке транскрипции.",
-      "howItWorksTitle": "Как это работает",
-      "noWords": "Слова ещё не добавлены",
-      "placeholder": "например, OpenWhispr, Kubernetes, Др. Мартинез...",
-      "pressEnterToAdd": "Нажмите Enter для добавления",
-      "removeWord": "Удалить слово",
-      "tipDescription": "Добавляйте имена собственные, технические термины или любые слова, которые могут быть распознаны неправильно.",
-      "tipLabel": "Совет",
       "title": "Пользовательский словарь",
+      "description": "Научите ИИ вашему словарю — именам, жаргону и терминам, которые он может не распознать",
+      "addWordOrPhrase": "Добавить слово или фразу",
+      "placeholder": "Добавить слово или фразу...",
+      "add": "Добавить",
+      "pressEnterToAdd": "Нажмите Enter для добавления",
+      "autoLearnTitle": "Автоматическое обучение на исправлениях",
+      "autoLearnDescription": "Когда вы исправляете транскрипцию в целевом приложении, исправленное слово автоматически добавляется в ваш словарь.",
+      "yourWords": "Ваши слова",
+      "clearDictionaryTitle": "Очистить словарь?",
+      "clearDictionaryDescription": "Все слова из вашего пользовательского словаря будут удалены. Это действие нельзя отменить.",
+      "clearAll": "Очистить всё",
+      "agentNameAutoManaged": "Управляется автоматически — синхронизировано с именем агента",
+      "removeWord": "Удалить слово",
+      "noWords": "Слов пока нет",
       "wordsAppearHere": "Добавленные слова появятся здесь",
-      "yourWords": "Ваши слова"
+      "howItWorksTitle": "Как это работает",
+      "howItWorksDescription": "Слова передаются как контекстные подсказки модели распознавания речи, помогая ей распознавать редкие термины. Для сложных слов попробуйте добавить контекст, например \"The word is Synty\", наряду с самим словом.",
+      "tipLabel": "Совет",
+      "tipDescription": "Разделяйте несколько слов запятыми. Добавляйте контекстные фразы, например \"The word is Synty\", для лучшего распознавания."
     },
     "general": {
       "appearance": {
@@ -1063,7 +1150,13 @@
       "hotkey": {
         "activationMode": "Режим активации",
         "description": "Комбинация клавиш для запуска и остановки голосовой диктовки",
+        "resetToDefault": "Сбросить на {{hotkey}}",
         "title": "Горячая клавиша диктовки"
+      },
+      "meetingHotkey": {
+        "title": "Горячая клавиша режима встречи",
+        "description": "Запустить режим встречи и закрепить панель сбоку экрана",
+        "clear": "Удалить горячую клавишу"
       },
       "microphone": {
         "description": "Выберите устройство ввода для диктовки",
@@ -1072,12 +1165,79 @@
       "soundEffects": {
         "dictationSounds": "Звуки диктовки",
         "dictationSoundsDescription": "Воспроизводить звуковой сигнал при начале и окончании записи",
+        "pauseMedia": "Пауза медиа",
+        "pauseMediaDescription": "Автоматически приостанавливать музыку при начале диктовки",
         "title": "Звуковые эффекты"
+      },
+      "clipboard": {
+        "title": "Буфер обмена",
+        "keepInClipboard": "Сохранять транскрипцию в буфере обмена",
+        "keepInClipboardDescription": "Сохранять надиктованный текст в буфере обмена для возможности ручной вставки при необходимости"
       },
       "startup": {
         "launchAtLogin": "Запускать при входе",
         "launchAtLoginDescription": "Автоматически запускать OpenWhispr при входе в систему",
-        "title": "Автозапуск"
+        "title": "Автозапуск",
+        "description": "Управляйте поведением OpenWhispr при запуске",
+        "startMinimized": "Запуск в свёрнутом виде",
+        "startMinimizedDescription": "Запускать без отображения окна панели управления"
+      },
+      "waylandPaste": {
+        "title": "Настройка вставки в Wayland",
+        "description": "Автоматическая вставка в Wayland требует ydotool. Проверьте состояние каждого компонента ниже.",
+        "allGoodDesc": "Автоматическая вставка готова к работе.",
+        "recheck": "Проверить снова",
+        "copy": "Копировать",
+        "ydotoolDesc": "Инструмент автоматизации ввода для Wayland",
+        "ydotooldDesc": "Демон ydotool (отдельный пакет в Ubuntu/Pop!_OS)",
+        "uinputDesc": "Доступ к устройству ввода ядра",
+        "uinputRuleFound": "Правило найдено, но не активно. Перезагрузка должна помочь.",
+        "uinputRuleMissing": "правило udev не найдено",
+        "inputGroup": "группа input",
+        "inputGroupDesc": "Пользователь должен состоять в группе input (требуется повторный вход)",
+        "service": "служба systemd",
+        "serviceDesc": "Пользовательский файл службы для автозапуска ydotoold",
+        "daemon": "демон ydotoold",
+        "daemonDesc": "Фоновая служба должна быть запущена",
+        "guide": {
+          "open": "Руководство",
+          "ydotool": {
+            "step1Title": "Установить ydotool",
+            "step1Desc": "Используйте менеджер пакетов вашего дистрибутива для установки ydotool.",
+            "step2Title": "Проверить установку",
+            "step2Desc": "Убедитесь, что ydotool доступен в вашем PATH."
+          },
+          "ydotoold": {
+            "step1Title": "Установить ydotoold",
+            "step1Desc": "В Ubuntu и Pop!_OS ydotoold — отдельный пакет. В Fedora он входит в состав ydotool."
+          },
+          "uinput": {
+            "ruleFoundTitle": "Правило udev уже настроено",
+            "ruleFoundDesc": "Правило udev для /dev/uinput уже есть в системе, но ещё не применено. Попробуйте перезагрузить правила:",
+            "rebootTitle": "Если перезагрузка правил не помогла, перезагрузите компьютер",
+            "rebootDesc": "В некоторых дистрибутивах изменения udev вступают в силу только после полной перезагрузки. Перезагрузите компьютер и проверьте снова.",
+            "step1Title": "Создать правило udev",
+            "step1Desc": "Это правило предоставляет доступ к /dev/uinput пользователям группы input.",
+            "step2Title": "Перезагрузить правила udev",
+            "step2Desc": "Применить новое правило без перезагрузки."
+          },
+          "group": {
+            "step1Title": "Добавить пользователя в группу input",
+            "step2Title": "Выйти и войти снова",
+            "step2Desc": "Изменения групп вступают в силу только после нового входа в систему. Выйдите из рабочего стола, войдите снова и откройте OpenWhispr."
+          },
+          "service": {
+            "step1Title": "Создать каталог службы",
+            "step2Title": "Создать файл службы",
+            "step2Desc": "Создаёт пользовательскую службу systemd, которая автоматически запускает ydotoold при входе в систему.",
+            "step3Title": "Перезагрузить и включить"
+          },
+          "daemon": {
+            "step1Title": "Запустить демон",
+            "step1Desc": "Запустите ydotoold и включите его автозапуск при каждом входе.",
+            "step2Title": "Проверить, что он работает"
+          }
+        }
       },
       "updates": {
         "badges": {
@@ -1140,7 +1300,7 @@
       "accessibilityDescription": "Необходимо для автоматической вставки после транскрипции",
       "accessibilityTitle": "Универсальный доступ",
       "description": "Проверяйте и управляйте системными разрешениями, необходимыми для работы OpenWhispr",
-      "microphoneDescription": "Необходимо для записи голоса и диктовки",
+      "microphoneDescription": "Записывает ваш голос для диктовки и транскрипции",
       "microphoneTitle": "Микрофон",
       "resetAccessibility": {
         "description": "OpenWhispr будет удалён из разрешений универсального доступа. Вам потребуется повторно предоставить доступ в Системные настройки > Конфиденциальность и безопасность > Универсальный доступ.",
@@ -1148,6 +1308,9 @@
         "rowDescription": "Исправьте проблемы после переустановки или пересборки приложения, удалив и повторно добавив OpenWhispr в системных настройках",
         "title": "Сбросить разрешения универсального доступа"
       },
+      "optional": "Необязательно",
+      "systemAudioTitle": "Системное аудио",
+      "systemAudioDescription": "Записывает аудио других участников звонков и совещаний",
       "test": "Тест",
       "testAndGrant": "Проверить и предоставить",
       "title": "Разрешения",
@@ -1156,11 +1319,15 @@
     },
     "privacy": {
       "cloudBackup": "Облачное резервное копирование",
-      "cloudBackupDescription": "Сохраняйте транскрипции в облаке, чтобы никогда их не потерять.",
+      "cloudBackupDescription": "Сохраняйте транскрипции и заметки в облаке для удобного доступа со всех устройств.",
+      "cloudNotesMigration": "Резервное копирование заметок… {{done}} / {{total}}",
+      "cloudNotesMigrationDone": "Все заметки скопированы в облако",
       "description": "Контролируйте, какие данные покидают ваше устройство. По умолчанию всё отключено.",
       "title": "Конфиденциальность",
       "usageAnalytics": "Аналитика использования",
-      "usageAnalyticsDescription": "Помогите нам улучшить OpenWhispr, делясь анонимными метриками производительности. Мы никогда не отправляем содержимое транскрипций — только данные о времени и ошибках."
+      "usageAnalyticsDescription": "Помогите нам улучшить OpenWhispr, делясь анонимными метриками производительности. Мы никогда не отправляем содержимое транскрипций — только данные о времени и ошибках.",
+      "dataRetention": "Хранение данных",
+      "dataRetentionDescription": "Сохранять транскрипции и аудио локально в истории. При отключении транскрипции вставляются, но не сохраняются."
     },
     "prompts": {
       "description": "Просматривайте, настраивайте и тестируйте единый системный промпт, который управляет очисткой текста и обнаружением инструкций",
@@ -1203,10 +1370,12 @@
         "openai_gpt_4o_transcribe": "Максимально точная транскрипция",
         "openai_whisper_1": "Оригинальная модель Whisper",
         "groq_whisper_large_v3_turbo": "Скорость в 216 раз быстрее реального времени",
+        "groq_whisper_large_v3": "Модель Large v3, быстрая и точная",
         "mistral_voxtral_mini_latest": "Быстрая многоязычная транскрипция"
       },
       "cloud": {
-        "openai_gpt_5_2": "Новейшая флагманская модель с рассуждением",
+        "openai_gpt_5_4": "Фронтирная модель для сложного рассуждения",
+        "openai_gpt_5_2": "Сильная модель рассуждения",
         "openai_gpt_5_mini": "Быстрая и экономичная",
         "openai_gpt_5_nano": "Сверхбыстрая, низкая задержка",
         "openai_gpt_4_1": "Надёжная базовая модель, контекст 1M",
@@ -1223,17 +1392,20 @@
         "groq_openai_gpt_oss_20b": "Быстрая открытая модель, 1000 т/с",
         "groq_llama_3_3_70b_versatile": "Универсальная модель Meta, 280 т/с",
         "groq_llama_3_1_8b_instant": "Сверхбыстрая 560 т/с, контекст 131K",
-        "groq_mixtral_8x7b_32768": "Контекст 32K, смесь экспертов",
-        "groq_gemma2_9b_it": "Эффективная модель Google"
+        "groq_llama_4_scout": "Эффективная мультимодальная Meta, 750 т/с",
+        "groq_compound": "Система Compound от Groq, 450 т/с",
+        "groq_compound_mini": "Быстрая система Compound, 3x ниже задержка",
+        "groq_kimi_k2_0905": "Moonshot AI 1T MoE, контекст 256K"
       },
       "local": {
+        "qwen_qwen3_5_9b_q4_k_m": "Мощная гибридная модель",
+        "qwen_qwen3_5_4b_q4_k_m": "Сбалансированная Qwen3.5 для общего использования",
+        "qwen_qwen3_5_2b_q4_k_m": "Компактная Qwen3.5 для быстрых задач",
         "qwen_qwen3_8b_q4_k_m": "Новейшая Qwen3 с поддержкой режима размышления",
         "qwen_qwen3_8b_q5_k_m": "Более качественная Qwen3 с режимом размышления",
         "qwen_qwen3_4b_q4_k_m": "Компактная Qwen3 со способностью к рассуждению",
         "qwen_qwen3_1_7b_q8_0": "Маленькая, но способная модель Qwen3",
-        "qwen_qwen3_0_6b_q8_0": "Миниатюрная Qwen3 для маломощных устройств",
         "qwen_qwen3_32b_q4_k_m": "Самая мощная локальная Qwen3 с глубоким рассуждением",
-        "qwen_qwen2_5_0_5b_instruct_q5_k_m": "Самая маленькая модель, быстрая, но с ограничениями",
         "qwen_qwen2_5_1_5b_instruct_q5_k_m": "Маленькая модель для базовых задач",
         "qwen_qwen2_5_3b_instruct_q5_k_m": "Сбалансированная модель общего назначения",
         "qwen_qwen2_5_7b_instruct_q4_k_m": "Большая модель высокого качества (Q4_K_M)",
@@ -1243,8 +1415,549 @@
         "llama_llama_3_2_1b_instruct_q4_k_m": "Миниатюрная модель для маломощных устройств",
         "llama_llama_3_2_3b_instruct_q4_k_m": "Маленькая, но способная многоязычная модель",
         "llama_llama_3_1_8b_instruct_q4_k_m": "Мощная модель с отличной производительностью",
-        "openai_oss_gpt_oss_20b_mxfp4": "Открытая модель OpenAI для потребительского оборудования"
+        "openai_oss_gpt_oss_20b_mxfp4": "Открытая модель OpenAI для потребительского оборудования",
+        "gemma_gemma_3_4b_it_q4_k_m": "Открытая модель Google, отличный баланс скорости и качества",
+        "gemma_gemma_3_1b_it_q4_k_m": "Сверхбыстрая модель Google, лучшая для очистки коротких диктовок"
       }
     }
+  },
+  "referral": {
+    "modalTitle": "Реферальная программа",
+    "title": "Приглашайте и получайте награды",
+    "subtitle": "Подарите месяц. Получите месяц.",
+    "tabs": {
+      "refer": "Пригласить",
+      "pastInvites": "Отправленные приглашения"
+    },
+    "howItWorks": {
+      "shareLink": "Поделитесь ссылкой-приглашением",
+      "theySignUp": "Они регистрируются и получают ",
+      "freeMonthOfPro": "бесплатный месяц Pro",
+      "youGet": "Вы получаете ",
+      "freeMonth": "бесплатный месяц",
+      "whenTheyDictate": ", когда они надиктуют 2 000 слов"
+    },
+    "inviteLink": {
+      "title": "Ваша ссылка-приглашение",
+      "copy": "Копировать",
+      "copied": "Скопировано"
+    },
+    "sendInvites": {
+      "title": "Отправить приглашения",
+      "placeholder": "friend@example.com",
+      "send": "Отправить",
+      "sending": "Отправка"
+    },
+    "stats": {
+      "referred": "Приглашено",
+      "converted": "Активировано",
+      "monthsEarned": "Месяцев заработано"
+    },
+    "status": {
+      "converted": "Активировано",
+      "opened": "Открыто",
+      "failed": "Не удалось",
+      "sent": "Отправлено"
+    },
+    "empty": {
+      "title": "Приглашения ещё не отправлены",
+      "description": "Поделитесь ссылкой или отправьте приглашение, чтобы начать"
+    },
+    "toasts": {
+      "copiedTitle": "Скопировано!",
+      "copiedDescription": "Реферальная ссылка скопирована в буфер обмена",
+      "copyFailedTitle": "Ошибка копирования",
+      "copyFailedDescription": "Не удалось скопировать ссылку в буфер обмена",
+      "invalidEmailTitle": "Неверный адрес электронной почты",
+      "invalidEmailDescription": "Пожалуйста, введите корректный адрес электронной почты",
+      "inviteSentTitle": "Приглашение отправлено!",
+      "inviteSentDescription": "Приглашение отправлено на {{email}}",
+      "sendFailedTitle": "Ошибка отправки",
+      "sendFailedDescription": "Не удалось отправить приглашение. Пожалуйста, попробуйте ещё раз."
+    },
+    "errors": {
+      "unableToLoad": "Не удалось загрузить данные реферальной программы",
+      "unableToLoadStats": "Не удалось загрузить статистику рефералов. Пожалуйста, попробуйте позже."
+    },
+    "tryAgain": "Попробовать снова",
+    "card": {
+      "brand": "OpenWhispr",
+      "signalId": "Signal ID",
+      "audioSignature": "Ваша аудиоподпись",
+      "stop": "Стоп",
+      "playSignal": "Воспроизвести сигнал"
+    },
+    "friends": {
+      "title": "Друзья",
+      "completed": "Завершено",
+      "sentInvites": "Отправленные приглашения"
+    }
+  },
+  "notes": {
+    "folders": {
+      "title": "Папки",
+      "soon": "Скоро",
+      "folderName": "Название папки",
+      "couldNotCreate": "Не удалось создать папку",
+      "couldNotRename": "Не удалось переименовать папку",
+      "couldNotDelete": "Не удалось удалить папку"
+    },
+    "list": {
+      "title": "Заметки",
+      "newNote": "Новая заметка",
+      "untitled": "Без названия",
+      "untitledNote": "Заметка без названия",
+      "timeNow": "Только что",
+      "minutesAgo": "{{count}} мин. назад",
+      "hoursAgo": "{{count}} ч. назад",
+      "daysAgo": "{{count}} дн. назад"
+    },
+    "editor": {
+      "untitled": "Без названия",
+      "noteTitle": "Название заметки",
+      "stop": "Стоп",
+      "transcribe": "Транскрибировать",
+      "processing": "Обработка...",
+      "export": "Экспорт",
+      "asMarkdown": "Как Markdown",
+      "asPlainText": "Как обычный текст",
+      "raw": "Исходный",
+      "enhanced": "Улучшенный",
+      "saving": "Сохранение",
+      "wordsCount": "{{count}} слов",
+      "startWriting": "Начните писать...",
+      "staleIndicator": "Содержимое изменилось после улучшения",
+      "live": "Живой",
+      "transcript": "Транскрипция",
+      "notes": "Заметки",
+      "conversationWillAppear": "Разговор появится здесь..."
+    },
+    "upload": {
+      "title": "Загрузить аудио",
+      "using": "Используется {{model}}",
+      "dropOrBrowse": "Перетащите аудиофайл или нажмите для выбора",
+      "supportedFormats": "MP3, WAV, M4A, WebM, OGG, FLAC, AAC",
+      "dropToUpload": "Отпустите для загрузки",
+      "transcribe": "Транскрибировать",
+      "cancel": "Отмена",
+      "transcribingCloud": "Транскрибирование через облако...",
+      "transcribingLocal": "Локальное транскрибирование...",
+      "transcribingProvider": "Транскрибирование через {{provider}}...",
+      "transcriptionComplete": "Транскрибирование завершено",
+      "openNote": "Открыть заметку",
+      "uploadAnother": "Загрузить ещё",
+      "retry": "Повторить",
+      "startOver": "Начать сначала",
+      "transcriptionSettings": "Настройки транскрибирования",
+      "newFolder": "Новая папка",
+      "folderName": "Название папки",
+      "create": "Создать",
+      "setupTitle": "Настройте транскрибирование",
+      "setupDescription": "Выберите способ транскрибирования аудио. Это также применяется к живой диктовке.",
+      "continue": "Продолжить",
+      "openwhisprCloud": "OpenWhispr Cloud",
+      "custom": "Другой",
+      "selectFolder": "Выбрать папку",
+      "transcriptionFailed": "Ошибка транскрибирования",
+      "errorOccurred": "Произошла ошибка",
+      "noProviderTitle": "Провайдер транскрипции не настроен",
+      "noProviderDescription": "Добавьте API-ключ или скачайте локальную модель, чтобы начать транскрипцию.",
+      "noProviderAction": "Открыть настройки транскрипции",
+      "fileTooLarge": "Этот файл превышает ограничение в 500 MB.",
+      "largeFileNote": "Большие файлы разделяются и транскрибируются параллельно.",
+      "chunkProgress": "Транскрибирование части {{completed}} из {{total}}...",
+      "paidPlanRequired": "Облачная транскрипция файлов более 25 МБ требует платного плана. Большие файлы обрабатываются через OpenWhispr Cloud для надёжных и качественных результатов.",
+      "byokTooLarge": "Сторонние API-ключи поддерживают файлы только до 25 МБ.",
+      "byokTooLargeDetail": "Для файлов более 25 МБ OpenWhispr Cloud выполняет разделение, параллельную обработку и сборку — для надёжных результатов без ограничений сторонних провайдеров.",
+      "byokTooLargeNeedsAccount": "Создайте аккаунт и перейдите на платный план, чтобы транскрибировать большие файлы через OpenWhispr Cloud.",
+      "byokTooLargeNeedsUpgrade": "Перейдите на платный план, чтобы транскрибировать большие файлы через OpenWhispr Cloud.",
+      "switchToCloudForLargeFiles": "Переключитесь на OpenWhispr Cloud, чтобы транскрибировать этот файл.",
+      "createAccount": "Создать аккаунт",
+      "upgrade": "Обновить",
+      "switchToCloud": "OpenWhispr Cloud"
+    },
+    "meeting": {
+      "title": "Заметки со встреч",
+      "description": "Транскрипции и структурированные резюме",
+      "comingSoon": "Скоро",
+      "back": "Назад"
+    },
+    "context": {
+      "moveToFolder": "Переместить в папку",
+      "delete": "Удалить",
+      "rename": "Переименовать",
+      "searchFolders": "Поиск папок...",
+      "noResults": "Папки не найдены",
+      "newFolder": "Новая папка"
+    },
+    "actions": {
+      "manage": "Управление действиями...",
+      "manageTitle": "Пользовательские действия",
+      "addAction": "Новое действие",
+      "editAction": "Редактировать действие",
+      "namePlaceholder": "Название действия",
+      "descriptionPlaceholder": "Краткое описание (необязательно)",
+      "promptPlaceholder": "Что ИИ должен сделать с содержимым заметки?",
+      "builtIn": "Встроенное",
+      "save": "Сохранить",
+      "update": "Обновить",
+      "cancel": "Отмена",
+      "noActions": "Пользовательских действий пока нет",
+      "runAction": "Запустить {{name}}",
+      "selectAction": "Выбрать действие",
+      "done": "Готово",
+      "builtin": {
+        "generateNotes": {
+          "name": "Сгенерировать заметки",
+          "description": "Очистить, структурировать и улучшить заметки"
+        }
+      },
+      "errors": {
+        "noModel": "Модель ИИ не выбрана. Настройте её в разделе Настройки.",
+        "actionFailed": "Действие не выполнено"
+      }
+    },
+    "empty": {
+      "title": "Нет заметок",
+      "description": "Создайте первую заметку",
+      "selectTitle": "Выберите заметку",
+      "selectDescription": "Выберите заметку на боковой панели",
+      "createNote": "Создать заметку",
+      "emptyFolder": "Папка пуста"
+    },
+    "addToFolder": {
+      "title": "Добавить заметки",
+      "searchPlaceholder": "Поиск заметок...",
+      "addExisting": "Добавить существующие",
+      "addCount": "Добавить: {{count}}",
+      "noResults": "Не найдено",
+      "noNotesAvailable": "Нет доступных заметок"
+    },
+    "onboarding": {
+      "llm": {
+        "title": "Настройте модель ИИ",
+        "description": "Действия используют ИИ для обработки ваших заметок. Настройте языковую модель, чтобы начать.",
+        "configured": "Модель ИИ настроена"
+      },
+      "actions": {
+        "title": "Действия на основе ИИ",
+        "description": "Действия преобразуют ваши заметки — очищают транскрипции, создают резюме встреч и многое другое. Используйте встроенные действия или создавайте свои.",
+        "builtInLabel": "Встроенное",
+        "createTitle": "Создайте своё действие",
+        "createDescription": "Определите пользовательское действие с собственным промптом для ИИ. Вы всегда сможете изменить или добавить новые в настройках.",
+        "created": "Создано!"
+      },
+      "getStarted": "Начать",
+      "systemAudio": {
+        "title": "Системный звук",
+        "description": "Записывайте звук с собраний и других приложений вместе с микрофоном.",
+        "grant": "Предоставить разрешение",
+        "enabled": "Включено"
+      }
+    },
+    "realtimeBanner": {
+      "message": "Транскрипция в реальном времени доступна в Pro",
+      "upgrade": "Перейти"
+    },
+    "enhance": {
+      "title": "Ошибка улучшения"
+    }
+  },
+  "dictionary": {
+    "addWord": "Добавить слово",
+    "removeWord": "Удалить {{word}}",
+    "clearAll": "Очистить все",
+    "howItWorks": "Как это работает",
+    "howItWorksDetail": "Добавленные слова включаются в промпт ИИ, чтобы модель распознавала и сохраняла эти термины при очистке транскрипции.",
+    "autoManaged": "Имя агента (управляется автоматически)",
+    "inputHint": "Нажмите Enter для добавления",
+    "addPlaceholder": "Добавить слово или фразу...",
+    "title": "Словарь",
+    "description": "Добавьте слова для улучшения транскрипции",
+    "clearTitle": "Очистить словарь?",
+    "clearDescription": "Все слова будут удалены без возможности восстановления."
+  },
+  "sidebar": {
+    "home": "Главная",
+    "notes": "Заметки",
+    "upload": "Загрузить",
+    "dictionary": "Словарь",
+    "referral": "Получить бесплатный месяц",
+    "settings": "Настройки",
+    "support": "Поддержка",
+    "limitReached": "Недельный лимит достигнут",
+    "limitReachedDescription": "Перейдите на Pro для безлимитных транскрипций.",
+    "upgradeToPro": "Перейти на Pro",
+    "upgradeTitle": "Перейдите на Pro",
+    "upgradeDescription": "Безлимитные транскрипции, транскрипция в реальном времени и многое другое.",
+    "learnMore": "Узнать больше",
+    "integrations": "Интеграции",
+    "defaultUser": "Пользователь",
+    "notSignedIn": "Не авторизован"
+  },
+  "usage": {
+    "approachingLimit": "Приближается недельный лимит",
+    "approachingLimitDescription": "На этой неделе использовано {{wordsUsed}} / {{limit}} слов.",
+    "yourPlan": "Ваш тариф",
+    "trial": "Пробный период ({{days}} дн.)",
+    "trial_other": "Пробный период ({{days}} дн.)",
+    "pro": "Pro",
+    "business": "Business",
+    "unlimitedTrial": "Без ограничений в пробный период",
+    "unlimited": "Без ограничений",
+    "manageSubscription": "Управление подпиской",
+    "weeklyUsage": "За неделю",
+    "limitReached": "Лимит достигнут",
+    "free": "Бесплатно",
+    "wordsRemaining": "Осталось {{remaining}} слов",
+    "rollingLimit": "Скользящий недельный лимит",
+    "upgradeToPro": "Перейти на Pro",
+    "useYourOwnKey": "Свой API-ключ",
+    "upgradeUnlimited": "Pro — без ограничений"
+  },
+  "support": {
+    "joinDiscord": "Присоединиться к Discord",
+    "contactSupport": "Связаться с поддержкой",
+    "submitBug": "Сообщить об ошибке"
+  },
+  "apiKeyInput": {
+    "placeholder": "Введите ваш API-ключ",
+    "label": "API-ключ",
+    "save": "Сохранить",
+    "cancelEdit": "Отменить редактирование",
+    "edit": "Изменить",
+    "add": "Добавить",
+    "editButton": "Изменить ключ",
+    "addButton": "Добавить ключ"
+  },
+  "gpu": {
+    "transcriptionBanner": "Ускорьте транскрипцию с помощью GPU",
+    "reasoningBanner": "Ускорьте обработку ИИ с помощью GPU",
+    "enableButton": "Включить GPU",
+    "active": "Ускорение GPU активно",
+    "ready": "Ускорение GPU готово",
+    "activating": "Активация GPU...",
+    "activationFailed": "Не удалось активировать GPU",
+    "retry": "Повторить",
+    "remove": "Удалить",
+    "dismiss": "Не сейчас",
+    "cancel": "Отмена"
+  },
+  "app": {
+    "toasts": {
+      "hotkeyChanged": {
+        "title": "Горячая клавиша изменена"
+      },
+      "hotkeyUnavailable": {
+        "title": "Горячая клавиша недоступна",
+        "description": "Не удалось зарегистрировать выбранную комбинацию. Выберите другую в настройках."
+      },
+      "addedToDict": "{{words}} добавлено в ваш словарь",
+      "undo": "Отменить",
+      "accessibilityMissing": {
+        "title": "Требуются разрешения универсального доступа",
+        "description": "OpenWhispr нужны разрешения универсального доступа для распознавания горячей клавиши и вставки текста. Включите их в Панели управления."
+      }
+    },
+    "mic": {
+      "hotkeyToSpeak": "{{hotkey}} для записи",
+      "recording": "Запись...",
+      "processing": "Обработка...",
+      "clickToSpeak": "Нажмите для записи"
+    },
+    "buttons": {
+      "cancelRecording": "Отменить запись",
+      "cancelProcessing": "Отменить обработку"
+    },
+    "commandMenu": {
+      "stopListening": "Остановить запись",
+      "startListening": "Начать запись",
+      "hideForNow": "Скрыть"
+    },
+    "oauth": {
+      "redirectTitle": "Перенаправление в приложение...",
+      "closeTab": "Можете закрыть эту вкладку."
+    }
+  },
+  "agentMode": {
+    "settings": {
+      "title": "Режим агента",
+      "description": "Голосовой чат-ассистент с отдельной моделью ИИ",
+      "enabled": "Включить режим агента",
+      "enabledDescription": "Используйте отдельную горячую клавишу для открытия наложения голосового чата",
+      "hotkey": "Горячая клавиша агента",
+      "hotkeyDescription": "Горячая клавиша для переключения наложения агента",
+      "model": "Модель агента",
+      "modelDescription": "Модель ИИ для разговоров с агентом",
+      "systemPrompt": "Системный промпт",
+      "systemPromptDescription": "Пользовательские инструкции для агента",
+      "systemPromptPlaceholder": "Введите пользовательский системный промпт...",
+      "openwhisprCloud": "OpenWhispr Cloud",
+      "openwhisprCloudDescription": "Использовать облачный ИИ OpenWhispr для разговоров с агентом",
+      "customSetup": "Своя настройка (BYOK)",
+      "customSetupDescription": "Используйте собственные API-ключи и выберите предпочтительную модель"
+    },
+    "chat": {
+      "placeholder": "Нажмите {{hotkey}} чтобы говорить",
+      "thinking": "Думаю...",
+      "transcribing": "Транскрибирую...",
+      "listening": "Слушаю...",
+      "newConversation": "Новый",
+      "copyToClipboard": "Копировать в буфер обмена",
+      "copied": "Скопировано!",
+      "emptyState": "Удерживайте {{hotkey}}, чтобы начать разговор",
+      "errorPrefix": "Ошибка"
+    },
+    "titleBar": {
+      "label": "Агент",
+      "newChat": "Новый разговор",
+      "close": "Закрыть"
+    },
+    "input": {
+      "holdToSpeak": "Удерживайте для разговора",
+      "toClose": "закрыть",
+      "listening": "Слушаю...",
+      "transcribing": "Транскрибирую...",
+      "thinking": "Думаю..."
+    }
+  },
+  "integrations": {
+    "title": "Интеграции",
+    "description": "Подключите сервисы для улучшения рабочего процесса",
+    "googleCalendar": {
+      "title": "Google Calendar",
+      "description": "Подключите календарь для автоматического обнаружения встреч и записи транскрипций.",
+      "connect": "Подключить Google Calendar",
+      "connecting": "Подключение...",
+      "connected": "Подключено",
+      "addAnother": "Добавить ещё один календарь",
+      "disconnect": "Отключить",
+      "disconnectConfirm": "Отключить {{email}}?",
+      "disconnectDescription": "Заметки встреч больше не будут записываться из этого календаря.",
+      "systemAudioRequired": "Требуется разрешение «Системное аудио»",
+      "systemAudioDescription": "Для транскрипции встреч OpenWhispr нужно разрешение «Системное аудио» для записи звука других участников. Мы никогда не записываем ваш экран. Вы будете перенаправлены в Системные настройки для включения.",
+      "openSettings": "Открыть Системные настройки"
+    },
+    "plan": {
+      "title": "Ваш план",
+      "current": "Текущий",
+      "free": "Бесплатный",
+      "freeLimit": "5 встреч / месяц",
+      "essential": "Essential",
+      "essentialLimit": "20 встреч / месяц",
+      "pro": "Pro",
+      "proLimit": "Безлимитно",
+      "upgrade": "Улучшить"
+    },
+    "beta": {
+      "title": "Запись встреч в бета-версии",
+      "description": "Мы всё ещё работаем над тем, как лучше интегрировать эту функцию. Будем рады вашим отзывам!",
+      "freeTier": "Бесплатный план: 5 часов / месяц",
+      "proTier": "Pro-план: 20 часов / месяц",
+      "feedback": "Нужно больше 20 часов? Напишите на gabe@openwhispr.com"
+    },
+    "notABot": {
+      "title": "OpenWhispr — это запись встреч, а не бот",
+      "description": "OpenWhispr захватывает аудио напрямую из вашей системы — он никогда не присоединяется к встречам как участник. Просто подключите календарь и делайте заметки как обычно."
+    }
+  },
+  "calendar": {
+    "title": "Google Календарь",
+    "status": "Статус",
+    "connected": "Подключено",
+    "disconnected": "Отключено",
+    "notConnectedDescription": "Подключите для обнаружения и записи встреч",
+    "connectCta": {
+      "title": "Интеграция с Календарём",
+      "description": "Автоматическое обнаружение встреч и запись транскрипций"
+    },
+    "connect": "Подключить Google Календарь",
+    "connecting": "Подключение...",
+    "disconnect": "Отключить",
+    "disconnecting": "Отключение...",
+    "sync": "Синхронизировать",
+    "syncing": "Синхронизация...",
+    "calendarsTitle": "Календари",
+    "upcomingTitle": "Предстоящие",
+    "noUpcoming": "Нет предстоящих событий",
+    "meetingStarting": "Встреча начинается сейчас",
+    "today": "Сегодня",
+    "tomorrow": "Завтра",
+    "detection": {
+      "title": "Обнаружение встреч",
+      "description": "Автоматически определять, когда вы на встрече",
+      "processDetection": "Обнаружение приложений",
+      "processDescription": "Определить, какое приложение вы используете при обнаружении встречи",
+      "audioDetection": "Обнаружение аудио",
+      "audioDescription": "Уведомление при обнаружении продолжительной активности микрофона"
+    }
+  },
+  "upcoming": {
+    "title": "Предстоящие встречи",
+    "transcriptions": "Транскрипции",
+    "tomorrow": "Завтра",
+    "noMoreMeetings": "Больше встреч сегодня нет",
+    "now": "Сейчас",
+    "join": "Присоединиться",
+    "untitledEvent": "Без названия",
+    "systemAudioRequired": "Разрешение «Системное аудио» необходимо для записи звука других участников.",
+    "openSettings": "Открыть Системные настройки",
+    "signInRequired": "Войдите, чтобы записывать встречи",
+    "signInDescription": "Создайте аккаунт или войдите для записи и транскрипции встреч.",
+    "connectCalendar": "Подключите календарь",
+    "connectCalendarDescription": "Свяжите Google Календарь, чтобы видеть предстоящие встречи и автоматически записывать заметки.",
+    "notABot": "OpenWhispr записывает через системный звук — он никогда не присоединяется к встречам как бот.",
+    "connectCalendarButton": "Подключить календарь"
+  },
+  "notesView": {
+    "searchPlaceholder": "Поиск заметок…",
+    "newNote": "Новая заметка",
+    "empty": {
+      "title": "Заметок пока нет",
+      "description": "Создайте первую заметку, чтобы начать."
+    },
+    "searchEmpty": {
+      "title": "Нет результатов",
+      "description": "По запросу «{{query}}» заметки не найдены."
+    },
+    "noteType": {
+      "personal": "личная",
+      "meeting": "встреча",
+      "upload": "загрузка"
+    }
+  },
+  "noteEditor": {
+    "saved": "Сохранено",
+    "deleteNote": "Удалить заметку",
+    "deleteConfirmTitle": "Удалить заметку?",
+    "deleteConfirmDescription": "Эта заметка будет удалена безвозвратно.",
+    "deleteConfirm": "Удалить"
+  },
+  "commandSearch": {
+    "title": "Поиск",
+    "description": "Поиск по заметкам и транскрипциям",
+    "shortPlaceholder": "Поиск",
+    "placeholder": "Поиск по заметкам и транскрипциям…",
+    "sections": {
+      "notes": "Заметки",
+      "transcripts": "Транскрипции"
+    },
+    "noResults": "Нет результатов",
+    "emptyState": "Начните ввод для поиска",
+    "footer": {
+      "navigate": "Навигация",
+      "open": "Открыть",
+      "dismiss": "Закрыть"
+    }
+  },
+  "updateNotification": {
+    "title": "Доступно обновление OpenWhispr",
+    "body": "Версия {{version}} готова к загрузке",
+    "cta": "Обновить"
+  },
+  "permissionsGate": {
+    "title": "Требуются разрешения",
+    "description": "OpenWhispr нужны некоторые разрешения для работы на этом компьютере.",
+    "continue": "Продолжить"
   }
 }

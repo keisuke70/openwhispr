@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import AudioManager from "../helpers/audioManager";
 import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
+import { getSettings } from "../stores/settingsStore";
+import { getRecordingErrorTitle } from "../utils/recordingErrors";
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -10,6 +12,7 @@ export const useAudioRecording = (toast, options = {}) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [streamingCommittedText, setStreamingCommittedText] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
@@ -25,11 +28,22 @@ export const useAudioRecording = (toast, options = {}) => {
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isProcessing) return false;
 
+      // Retry STT config fetch if it wasn't loaded on mount (e.g. auth wasn't ready)
+      if (!audioManagerRef.current.sttConfig) {
+        const config = await window.electronAPI.getSttConfig?.();
+        if (config?.success) {
+          audioManagerRef.current.setSttConfig(config);
+        }
+      }
+
       const didStart = audioManagerRef.current.shouldUseStreaming()
         ? await audioManagerRef.current.startStreamingRecording()
         : await audioManagerRef.current.startRecording();
 
       if (didStart) {
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.pauseMediaPlayback?.();
+        }
         void playStartCue();
       }
 
@@ -74,40 +88,50 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
         if (!isStreaming) {
+          setStreamingCommittedText("");
           setPartialTranscript("");
         }
       },
       onError: (error) => {
-        // Provide specific titles for cloud error codes
-        const title =
-          error.code === "AUTH_EXPIRED"
-            ? t("hooks.audioRecording.errorTitles.sessionExpired")
-            : error.code === "OFFLINE"
-              ? t("hooks.audioRecording.errorTitles.offline")
-              : error.code === "LIMIT_REACHED"
-                ? t("hooks.audioRecording.errorTitles.dailyLimitReached")
-                : error.title;
-
+        const title = getRecordingErrorTitle(error, t);
         toast({
           title,
           description: error.description,
           variant: "destructive",
           duration: error.code === "AUTH_EXPIRED" ? 8000 : undefined,
         });
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.resumeMediaPlayback?.();
+        }
       },
       onPartialTranscript: (text) => {
         setPartialTranscript(text);
       },
+      onStreamingCommit: (text) => {
+        setPartialTranscript("");
+        setStreamingCommittedText((current) => `${current}${text}`);
+      },
       onTranscriptionComplete: async (result) => {
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.resumeMediaPlayback?.();
+        }
+
         if (result.success) {
+          const transcribedText = result.text?.trim();
+
+          if (!transcribedText) {
+            return;
+          }
+
           setTranscript(result.text);
 
           const isStreaming = result.source?.includes("streaming");
+          const { keepTranscriptionInClipboard } = getSettings();
           const pasteStart = performance.now();
-          await audioManagerRef.current.safePaste(
-            result.text,
-            isStreaming ? { fromStreaming: true } : {}
-          );
+          await audioManagerRef.current.safePaste(result.text, {
+            ...(isStreaming ? { fromStreaming: true } : {}),
+            restoreClipboard: !keepTranscriptionInClipboard,
+          });
           logger.info(
             "Paste timing",
             {
@@ -118,9 +142,9 @@ export const useAudioRecording = (toast, options = {}) => {
             "streaming"
           );
 
-          audioManagerRef.current.saveTranscription(result.text);
+          audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text);
 
-          if (result.source === "openai" && localStorage.getItem("useLocalWhisper") === "true") {
+          if (result.source === "openai" && getSettings().useLocalWhisper) {
             toast({
               title: t("hooks.audioRecording.fallback.title"),
               description: t("hooks.audioRecording.fallback.description"),
@@ -140,12 +164,22 @@ export const useAudioRecording = (toast, options = {}) => {
             });
           }
 
-          audioManagerRef.current.warmupStreamingConnection();
+          if (audioManagerRef.current.shouldUseStreaming()) {
+            audioManagerRef.current.warmupStreamingConnection();
+          }
         }
       },
     });
 
-    audioManagerRef.current.warmupStreamingConnection();
+    audioManagerRef.current.setContext("dictation");
+    window.electronAPI.getSttConfig?.().then((config) => {
+      if (config?.success && audioManagerRef.current) {
+        audioManagerRef.current.setSttConfig(config);
+        if (audioManagerRef.current.shouldUseStreaming()) {
+          audioManagerRef.current.warmupStreamingConnection();
+        }
+      }
+    });
 
     const handleToggle = async () => {
       if (!audioManagerRef.current) return;
@@ -214,8 +248,11 @@ export const useAudioRecording = (toast, options = {}) => {
   const cancelRecording = async () => {
     if (audioManagerRef.current) {
       const state = audioManagerRef.current.getState();
+      if (getSettings().pauseMediaOnDictation) {
+        window.electronAPI?.resumeMediaPlayback?.();
+      }
       if (state.isStreaming) {
-        return await audioManagerRef.current.stopStreamingRecording();
+        return await audioManagerRef.current.cancelStreamingRecording();
       }
       return audioManagerRef.current.cancelRecording();
     }
@@ -237,21 +274,17 @@ export const useAudioRecording = (toast, options = {}) => {
     }
   };
 
-  const warmupStreaming = useCallback((opts) => {
-    audioManagerRef.current?.warmupStreamingConnection(opts);
-  }, []);
-
   return {
     isRecording,
     isProcessing,
     isStreaming,
     transcript,
+    streamingCommittedText,
     partialTranscript,
     startRecording,
     stopRecording,
     cancelRecording,
     cancelProcessing,
     toggleListening,
-    warmupStreaming,
   };
 };

@@ -1,4 +1,5 @@
 import modelDataRaw from "./modelRegistryData.json";
+import { isCloudReasoningMode, getSettings } from "../stores/settingsStore";
 
 export interface ModelDefinition {
   id: string;
@@ -37,6 +38,8 @@ export interface CloudModelDefinition {
   description: string;
   descriptionKey?: string;
   disableThinking?: boolean;
+  tokenParam?: "max_tokens" | "max_completion_tokens";
+  supportsTemperature?: boolean;
 }
 
 export interface CloudProviderData {
@@ -251,13 +254,12 @@ export function getReasoningModelLabel(modelId: string): string {
 }
 
 export function getModelProvider(modelId: string): string {
-  // When in OpenWhispr cloud mode, route reasoning through the cloud API
-  if (typeof localStorage !== "undefined") {
-    const cloudMode = localStorage.getItem("cloudReasoningMode");
-    const isSignedIn = localStorage.getItem("isSignedIn") === "true";
-    if (cloudMode === "openwhispr" && isSignedIn) {
-      return "openwhispr";
-    }
+  if (isCloudReasoningMode()) {
+    return "openwhispr";
+  }
+
+  if (getSettings().reasoningProvider === "custom") {
+    return "custom";
   }
 
   const model = getAllReasoningModels().find((m) => m.value === modelId);
@@ -272,8 +274,9 @@ export function getModelProvider(modelId: string): string {
       modelId.includes("openai/") ||
       modelId.includes("llama-3.1-8b-instant") ||
       modelId.includes("llama-3.3-") ||
-      modelId.includes("mixtral-") ||
-      modelId.includes("gemma2-")
+      modelId.includes("meta-llama/llama-4-") ||
+      modelId.includes("groq/compound") ||
+      modelId.includes("moonshotai/kimi-k2-")
     )
       return "groq";
     if (
@@ -324,6 +327,40 @@ export function getCloudModel(modelId: string): CloudModelDefinition | undefined
     if (model) return model;
   }
   return undefined;
+}
+
+export interface OpenAiApiConfig {
+  tokenParam: "max_tokens" | "max_completion_tokens";
+  supportsTemperature: boolean;
+}
+
+export function getOpenAiApiConfig(modelId: string): OpenAiApiConfig {
+  const model = getCloudModel(modelId);
+  if (model?.tokenParam) {
+    return {
+      tokenParam: model.tokenParam,
+      supportsTemperature: model.supportsTemperature ?? true,
+    };
+  }
+
+  // Fallback for models not in the registry (custom model IDs, etc.)
+  const isLegacy =
+    modelId.startsWith("gpt-3") ||
+    modelId.startsWith("gpt-4o") ||
+    modelId.startsWith("gpt-4-") ||
+    modelId === "gpt-4";
+
+  if (isLegacy) {
+    return { tokenParam: "max_tokens", supportsTemperature: true };
+  }
+
+  // gpt-4.1* supports temperature but uses max_completion_tokens
+  if (modelId.startsWith("gpt-4.1")) {
+    return { tokenParam: "max_completion_tokens", supportsTemperature: true };
+  }
+
+  // gpt-5* reasoning models: no temperature
+  return { tokenParam: "max_completion_tokens", supportsTemperature: false };
 }
 
 export function getParakeetModels(): ParakeetModelsMap {

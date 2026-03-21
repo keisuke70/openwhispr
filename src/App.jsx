@@ -5,9 +5,10 @@ import { X } from "lucide-react";
 import { useToast } from "./components/ui/Toast";
 import { LoadingDots } from "./components/ui/LoadingDots";
 import { useHotkey } from "./hooks/useHotkey";
+import { formatHotkeyLabel } from "./utils/hotkeys";
 import { useWindowDrag } from "./hooks/useWindowDrag";
 import { useAudioRecording } from "./hooks/useAudioRecording";
-import { useAuth } from "./hooks/useAuth";
+import { useSettingsStore } from "./stores/settingsStore";
 
 // Sound Wave Icon Component (for idle/hover states)
 const SoundWaveIcon = ({ size = 16 }) => {
@@ -33,7 +34,7 @@ const VoiceWaveIndicator = ({ isListening }) => {
       {[...Array(4)].map((_, i) => (
         <div
           key={i}
-          className={`w-0.5 bg-white rounded-full transition-all duration-150 ${
+          className={`w-0.5 bg-white rounded-full transition-[height] duration-150 ${
             isListening ? "animate-pulse h-4" : "h-2"
           }`}
           style={{
@@ -46,9 +47,15 @@ const VoiceWaveIndicator = ({ isListening }) => {
   );
 };
 
-// Enhanced Tooltip Component
-const Tooltip = ({ children, content, emoji }) => {
+// Tooltip Component
+const Tooltip = ({ children, content, emoji, align = "center" }) => {
   const [isVisible, setIsVisible] = useState(false);
+
+  const alignClass =
+    align === "right" ? "right-0" : align === "left" ? "left-0" : "left-1/2 -translate-x-1/2";
+
+  const arrowClass =
+    align === "right" ? "right-3" : align === "left" ? "left-3" : "left-1/2 -translate-x-1/2";
 
   return (
     <div className="relative inline-block">
@@ -57,13 +64,48 @@ const Tooltip = ({ children, content, emoji }) => {
       </div>
       {isVisible && (
         <div
-          className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-1 py-1 text-popover-foreground bg-popover border border-border rounded-md whitespace-nowrap z-10 transition-opacity duration-150 shadow-lg"
-          style={{ fontSize: "9.7px", maxWidth: "96px" }}
+          className={`absolute bottom-full ${alignClass} mb-2 px-1.5 py-1 text-[10px] text-popover-foreground bg-popover border border-border rounded-md z-10 shadow-lg transition-opacity duration-150 whitespace-nowrap`}
         >
           {emoji && <span className="mr-1">{emoji}</span>}
           {content}
-          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-popover"></div>
+          <div
+            className={`absolute top-full ${arrowClass} w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-popover`}
+          ></div>
         </div>
+      )}
+    </div>
+  );
+};
+
+const LiveTranscriptPanel = ({ committedText, partialText, isVisible, title, placeholder }) => {
+  if (!isVisible) return null;
+
+  const hasTranscript = committedText.trim() || partialText.trim();
+  const needsSpacer =
+    committedText &&
+    partialText &&
+    !/\s$/.test(committedText) &&
+    !/^\s/.test(partialText) &&
+    !/^[,.!?;:]/.test(partialText);
+
+  return (
+    <div
+      aria-live="polite"
+      className="pointer-events-none absolute bottom-full left-1/2 mb-4 w-[680px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-[28px] border border-white/12 bg-black/74 px-6 py-5 text-left text-white shadow-2xl backdrop-blur-xl"
+    >
+      <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+        <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+        {title}
+      </div>
+
+      {hasTranscript ? (
+        <p className="text-[22px] font-medium leading-[1.35] tracking-[-0.01em] text-white/92">
+          {committedText && <span className="text-white/72">{committedText}</span>}
+          {needsSpacer && <span className="text-white"> </span>}
+          {partialText && <span className="text-white">{partialText}</span>}
+        </p>
+      ) : (
+        <p className="text-[18px] leading-[1.45] text-white/45">{placeholder}</p>
       )}
     </div>
   );
@@ -74,19 +116,17 @@ export default function App() {
   const [isCommandMenuOpen, setIsCommandMenuOpen] = useState(false);
   const commandMenuRef = useRef(null);
   const buttonRef = useRef(null);
-  const { toast, toastCount } = useToast();
+  const { toast, dismiss, toastCount } = useToast();
   const { t } = useTranslation();
   const { hotkey } = useHotkey();
   const { isDragging, handleMouseDown, handleMouseUp } = useWindowDrag();
-  const { isSignedIn } = useAuth();
 
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
 
-  // Floating icon auto-hide setting (read from localStorage, synced via IPC)
-  const [floatingIconAutoHide, setFloatingIconAutoHide] = useState(
-    () => localStorage.getItem("floatingIconAutoHide") === "true"
-  );
+  // Floating icon auto-hide setting (read from store, synced via IPC)
+  const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
+  const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
   const prevAutoHideRef = useRef(floatingIconAutoHide);
 
   const setWindowInteractivity = React.useCallback((shouldCapture) => {
@@ -115,11 +155,54 @@ export default function App() {
       });
     });
 
+    const unsubscribeAccessibility = window.electronAPI?.onAccessibilityMissing?.(() => {
+      toast({
+        title: t("app.toasts.accessibilityMissing.title"),
+        description: t("app.toasts.accessibilityMissing.description"),
+        duration: 12000,
+      });
+    });
+
+    const unsubscribeCorrections = window.electronAPI?.onCorrectionsLearned?.((words) => {
+      if (words && words.length > 0) {
+        const wordList = words.map((w) => `\u201c${w}\u201d`).join(", ");
+        let toastId;
+        toastId = toast({
+          title: t("app.toasts.addedToDict", { words: wordList }),
+          variant: "success",
+          duration: 6000,
+          action: (
+            <button
+              onClick={async () => {
+                try {
+                  const result = await window.electronAPI?.undoLearnedCorrections?.(words);
+                  if (result?.success) {
+                    dismiss(toastId);
+                  }
+                } catch {
+                  // silently fail — word stays in dictionary
+                }
+              }}
+              className="text-[10px] font-medium px-2.5 py-1 rounded-sm whitespace-nowrap
+                text-emerald-100/90 hover:text-white
+                bg-emerald-500/15 hover:bg-emerald-500/25
+                border border-emerald-400/20 hover:border-emerald-400/35
+                transition-all duration-150"
+            >
+              {t("app.toasts.undo")}
+            </button>
+          ),
+        });
+      }
+    });
+
     return () => {
       unsubscribeFallback?.();
       unsubscribeFailed?.();
+      unsubscribeAccessibility?.();
+      unsubscribeCorrections?.();
     };
-  }, [toast, t]);
+  }, [toast, dismiss, t]);
 
   useEffect(() => {
     if (isCommandMenuOpen || toastCount > 0) {
@@ -129,21 +212,6 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
 
-  useEffect(() => {
-    const resizeWindow = () => {
-      if (isCommandMenuOpen && toastCount > 0) {
-        window.electronAPI?.resizeMainWindow?.("EXPANDED");
-      } else if (isCommandMenuOpen) {
-        window.electronAPI?.resizeMainWindow?.("WITH_MENU");
-      } else if (toastCount > 0) {
-        window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
-      } else {
-        window.electronAPI?.resizeMainWindow?.("BASE");
-      }
-    };
-    resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
-
   const handleDictationToggle = React.useCallback(() => {
     setIsCommandMenuOpen(false);
     setWindowInteractivity(false);
@@ -152,27 +220,42 @@ export default function App() {
   const {
     isRecording,
     isProcessing,
+    isStreaming,
+    streamingCommittedText,
+    partialTranscript,
     toggleListening,
     cancelRecording,
     cancelProcessing,
-    warmupStreaming,
   } = useAudioRecording(toast, {
     onToggle: handleDictationToggle,
   });
 
-  // Trigger streaming warmup when user signs in (covers first-time account creation).
-  // Pass isSignedIn directly to bypass the localStorage race condition where
-  // useAuth's useEffect may not have written localStorage yet.
-  useEffect(() => {
-    if (isSignedIn) {
-      warmupStreaming({ isSignedIn: true });
-    }
-  }, [isSignedIn, warmupStreaming]);
+  const committedTranscript = streamingCommittedText;
+  const livePartialTranscript = partialTranscript;
+  const showLiveTranscriptPanel = isStreaming;
 
-  // Listen for auto-hide setting changes relayed from the main process
+  useEffect(() => {
+    const resizeWindow = () => {
+      if (isCommandMenuOpen && toastCount > 0) {
+        window.electronAPI?.resizeMainWindow?.("EXPANDED");
+      } else if (isCommandMenuOpen) {
+        window.electronAPI?.resizeMainWindow?.("WITH_MENU");
+      } else if (showLiveTranscriptPanel) {
+        window.electronAPI?.resizeMainWindow?.("WITH_CAPTION");
+      } else if (toastCount > 0) {
+        window.electronAPI?.resizeMainWindow?.("WITH_TOAST");
+      } else {
+        window.electronAPI?.resizeMainWindow?.("BASE");
+      }
+    };
+    resizeWindow();
+  }, [isCommandMenuOpen, showLiveTranscriptPanel, toastCount]);
+
+  // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
     const unsubscribe = window.electronAPI?.onFloatingIconAutoHideChanged?.((enabled) => {
-      setFloatingIconAutoHide(enabled);
+      localStorage.setItem("floatingIconAutoHide", String(enabled));
+      useSettingsStore.setState({ floatingIconAutoHide: enabled });
     });
     return () => unsubscribe?.();
   }, []);
@@ -252,7 +335,7 @@ export default function App() {
       case "hover":
         return {
           className: `${baseClasses} bg-black/50 cursor-pointer`,
-          tooltip: t("app.mic.hotkeyToSpeak", { hotkey }),
+          tooltip: formatHotkeyLabel(hotkey),
         };
       case "recording":
         return {
@@ -277,8 +360,18 @@ export default function App() {
 
   return (
     <div className="dictation-window">
-      {/* Bottom-right voice button - window expands upward/leftward */}
-      <div className="fixed bottom-6 right-6 z-50">
+      {/* Voice button - position determined by panelStartPosition setting */}
+      <div
+        className={`fixed bottom-1 z-50 ${
+          showLiveTranscriptPanel
+            ? "left-1/2 -translate-x-1/2"
+            : panelStartPosition === "bottom-left"
+            ? "left-1"
+            : panelStartPosition === "center"
+              ? "left-1/2 -translate-x-1/2"
+              : "right-1"
+        }`}
+      >
         <div
           className="relative flex items-center gap-2"
           onMouseEnter={() => {
@@ -292,6 +385,13 @@ export default function App() {
             }
           }}
         >
+          <LiveTranscriptPanel
+            committedText={committedTranscript}
+            partialText={livePartialTranscript}
+            isVisible={showLiveTranscriptPanel}
+            title={t("app.mic.recording")}
+            placeholder={t("listening")}
+          />
           {(isRecording || isProcessing) && isHovered && (
             <button
               aria-label={
@@ -301,7 +401,7 @@ export default function App() {
                 e.stopPropagation();
                 isRecording ? cancelRecording() : cancelProcessing();
               }}
-              className="group/cancel w-5 h-5 rounded-full bg-surface-2/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-all duration-150 shadow-sm backdrop-blur-sm"
+              className="group/cancel w-5 h-5 rounded-full bg-surface-2/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-colors duration-150 shadow-sm backdrop-blur-sm"
             >
               <X
                 size={10}
@@ -310,7 +410,16 @@ export default function App() {
               />
             </button>
           )}
-          <Tooltip content={micProps.tooltip}>
+          <Tooltip
+            content={micProps.tooltip}
+            align={
+              panelStartPosition === "bottom-left"
+                ? "left"
+                : panelStartPosition === "center"
+                  ? "center"
+                  : "right"
+            }
+          >
             <button
               ref={buttonRef}
               onMouseDown={(e) => {

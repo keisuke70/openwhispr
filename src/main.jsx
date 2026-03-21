@@ -3,21 +3,27 @@ import ReactDOM from "react-dom/client";
 import { I18nextProvider, useTranslation } from "react-i18next";
 import App from "./App.jsx";
 import AuthenticationStep from "./components/AuthenticationStep.tsx";
-import TitleBar from "./components/TitleBar.tsx";
-import SupportDropdown from "./components/ui/SupportDropdown.tsx";
+import WindowControls from "./components/WindowControls.tsx";
 import { Card, CardContent } from "./components/ui/card.tsx";
 import ErrorBoundary from "./components/ErrorBoundary.tsx";
 import { ToastProvider } from "./components/ui/Toast.tsx";
 import { SettingsProvider } from "./hooks/useSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useAuth } from "./hooks/useAuth";
+import { areRequiredPermissionsMet } from "./utils/permissions";
 import i18n from "./i18n";
 import "./index.css";
 
 const controlPanelImport = () => import("./components/ControlPanel.tsx");
 const onboardingFlowImport = () => import("./components/OnboardingFlow.tsx");
+const agentOverlayImport = () => import("./components/AgentOverlay.tsx");
+const permissionsGateImport = () => import("./components/PermissionsGate.tsx");
 const ControlPanel = React.lazy(controlPanelImport);
 const OnboardingFlow = React.lazy(onboardingFlowImport);
+const AgentOverlay = React.lazy(agentOverlayImport);
+const PermissionsGate = React.lazy(permissionsGateImport);
+import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.tsx";
+import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 
 let root = null;
 
@@ -271,25 +277,45 @@ if (!isOAuthBrowserRedirect()) {
 
 function AppRouter() {
   useTheme();
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const params = window.location.search;
+
+  if (params.includes("meeting-notification=true")) {
+    return <MeetingNotificationOverlay />;
+  }
+
+  if (params.includes("update-notification=true")) {
+    return <UpdateNotificationOverlay />;
+  }
+
+  return <MainApp />;
+}
+
+function MainApp() {
+  const { isSignedIn, isGracePeriodOnly, isLoaded: authLoaded } = useAuth();
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [needsReauth, setNeedsReauth] = useState(false);
+  const [needsPermissions, setNeedsPermissions] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isAgentPanel = window.location.search.includes("agent=true");
   const isControlPanel =
-    window.location.pathname.includes("control") || window.location.search.includes("panel=true");
-  const isDictationPanel = !isControlPanel;
+    !isAgentPanel &&
+    (window.location.pathname.includes("control") || window.location.search.includes("panel=true"));
+  const isDictationPanel = !isControlPanel && !isAgentPanel;
 
   // Preload lazy chunks while waiting for auth so Suspense resolves instantly
   useEffect(() => {
-    if (isControlPanel) {
+    if (isAgentPanel) {
+      agentOverlayImport().catch(() => {});
+    } else if (isControlPanel) {
       controlPanelImport().catch(() => {});
+      permissionsGateImport().catch(() => {});
       if (!localStorage.getItem("onboardingCompleted")) {
         onboardingFlowImport().catch(() => {});
       }
     }
-  }, [isControlPanel]);
+  }, [isControlPanel, isAgentPanel]);
 
   useEffect(() => {
     if (!authLoaded) return;
@@ -299,8 +325,12 @@ function AppRouter() {
       localStorage.getItem("authenticationSkipped") === "true" ||
       localStorage.getItem("skipAuth") === "true";
 
-    // Valid session proves prior onboarding — restore flag if localStorage was wiped
-    if (!onboardingCompleted && isSignedIn) {
+    // Actual session (not OAuth grace period) proves prior onboarding — restore flag if localStorage was wiped.
+    // Guard with onboardingInProgress so first-time users mid-onboarding don't get auto-completed.
+    const onboardingInProgress = localStorage.getItem("onboardingCurrentStep") !== null;
+    const isReturningUser =
+      !onboardingCompleted && isSignedIn && !isGracePeriodOnly && !onboardingInProgress;
+    if (isReturningUser) {
       localStorage.setItem("onboardingCompleted", "true");
     }
 
@@ -311,6 +341,14 @@ function AppRouter() {
         setShowOnboarding(true);
       } else if (!isSignedIn && !authSkipped) {
         setNeedsReauth(true);
+      } else {
+        // Check permissions from localStorage — PermissionsGate does the real async checks
+        const platform = window.electronAPI?.getPlatform?.() ?? "darwin";
+        const micOk = localStorage.getItem("micPermissionGranted") === "true";
+        const accessibilityOk = localStorage.getItem("accessibilityPermissionGranted") === "true";
+        if (!areRequiredPermissionsMet(micOk, accessibilityOk, platform)) {
+          setNeedsPermissions(true);
+        }
       }
     }
 
@@ -323,12 +361,25 @@ function AppRouter() {
     }
 
     setIsLoading(false);
-  }, [isControlPanel, isDictationPanel, isSignedIn, authLoaded]);
+  }, [isControlPanel, isDictationPanel, isSignedIn, isGracePeriodOnly, authLoaded]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
+    setNeedsPermissions(false); // onboarding already handled permissions
     localStorage.setItem("onboardingCompleted", "true");
   };
+
+  const handlePermissionsComplete = () => {
+    setNeedsPermissions(false);
+  };
+
+  if (isAgentPanel) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <AgentOverlay />
+      </Suspense>
+    );
+  }
 
   if (isLoading) {
     return <LoadingFallback />;
@@ -350,14 +401,17 @@ function AppRouter() {
         className="h-screen flex flex-col bg-background"
         style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
       >
-        <div className="shrink-0 z-10">
-          <TitleBar
-            showTitle={true}
-            className="bg-background backdrop-blur-xl border-b border-border shadow-sm"
-            actions={<SupportDropdown />}
-          />
+        <div
+          className="flex items-center justify-end w-full h-10 shrink-0"
+          style={{ WebkitAppRegion: "drag" }}
+        >
+          {window.electronAPI?.getPlatform?.() !== "darwin" && (
+            <div className="pr-1" style={{ WebkitAppRegion: "no-drag" }}>
+              <WindowControls />
+            </div>
+          )}
         </div>
-        <div className="flex-1 px-6 md:px-12 overflow-y-auto flex items-center">
+        <div className="flex-1 px-6 overflow-y-auto flex items-center">
           <div className="w-full max-w-sm mx-auto">
             <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
               <CardContent className="p-6">
@@ -378,6 +432,15 @@ function AppRouter() {
     );
   }
 
+  // Returning user missing permissions (new machine, re-auth, etc.)
+  if (isControlPanel && needsPermissions) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PermissionsGate onComplete={handlePermissionsComplete} />
+      </Suspense>
+    );
+  }
+
   return isControlPanel ? (
     <Suspense fallback={<LoadingFallback />}>
       <ControlPanel />
@@ -389,7 +452,7 @@ function AppRouter() {
 
 function LoadingFallback({ message }) {
   const { t } = useTranslation();
-  const fallbackMessage = message || t("app.loading");
+  const fallbackMessage = message || t("common.loading");
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">

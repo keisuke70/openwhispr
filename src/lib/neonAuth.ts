@@ -73,7 +73,7 @@ function createAuthExpiredError(originalError: unknown): Error {
   return error;
 }
 
-export function clearLastSignInTime(): void {
+function clearLastSignInTime(): void {
   lastSignInTime = null;
   persistLastSignInTime(null);
 }
@@ -98,16 +98,25 @@ export function isWithinGracePeriod(): boolean {
   return elapsed < GRACE_PERIOD_MS;
 }
 
-export async function refreshSession(): Promise<boolean> {
-  if (!authClient) {
-    return false;
+export async function deleteAccount(): Promise<{ error?: Error }> {
+  if (!OPENWHISPR_API_URL) {
+    return { error: new Error("API not configured") };
   }
 
   try {
-    const result = await authClient.getSession();
-    return Boolean((result.data?.session as any)?.user);
-  } catch {
-    return false;
+    const res = await fetch(`${OPENWHISPR_API_URL}/api/auth/delete-account`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to delete account");
+    }
+
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error : new Error("Failed to delete account") };
   }
 }
 
@@ -128,7 +137,6 @@ export async function signOut(): Promise<void> {
 export async function withSessionRefresh<T>(operation: () => Promise<T>): Promise<T> {
   const startedInGracePeriod = isWithinGracePeriod();
   let graceRetriesUsed = 0;
-  let refreshAttempted = false;
 
   while (true) {
     try {
@@ -150,15 +158,6 @@ export async function withSessionRefresh<T>(operation: () => Promise<T>): Promis
         continue;
       }
 
-      if (!refreshAttempted) {
-        refreshAttempted = true;
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          continue;
-        }
-      }
-
-      markSignedOutState();
       throw createAuthExpiredError(error);
     }
   }
@@ -189,7 +188,12 @@ export async function signInWithSocial(provider: SocialProvider): Promise<{ erro
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ provider, callbackURL, disableRedirect: true }),
+        body: JSON.stringify({
+          provider,
+          callbackURL,
+          newUserCallbackURL: callbackURL,
+          disableRedirect: true,
+        }),
       });
 
       const text = await response.text();

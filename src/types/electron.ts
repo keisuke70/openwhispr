@@ -1,10 +1,71 @@
 export type LocalTranscriptionProvider = "whisper" | "nvidia";
 
+export type TranscriptionStatus = "completed" | "failed" | "pending";
+
 export interface TranscriptionItem {
   id: number;
   text: string;
+  raw_text: string | null;
   timestamp: string;
   created_at: string;
+  has_audio: number;
+  audio_duration_ms: number | null;
+  provider: string | null;
+  model: string | null;
+  status: TranscriptionStatus;
+  error_message: string | null;
+}
+
+export interface NoteItem {
+  id: number;
+  title: string;
+  content: string;
+  enhanced_content: string | null;
+  enhancement_prompt: string | null;
+  enhanced_at_content_hash: string | null;
+  note_type: "personal" | "meeting" | "upload";
+  source_file: string | null;
+  audio_duration_seconds: number | null;
+  folder_id: number | null;
+  transcript: string | null;
+  calendar_event_id: string | null;
+  cloud_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FolderItem {
+  id: number;
+  name: string;
+  is_default: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface ActionItem {
+  id: number;
+  name: string;
+  description: string;
+  prompt: string;
+  icon: string;
+  is_builtin: number;
+  sort_order: number;
+  translation_key: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GpuInfo {
+  hasNvidiaGpu: boolean;
+  gpuName?: string;
+  driverVersion?: string;
+  vramMb?: number;
+}
+
+export interface CudaWhisperStatus {
+  downloaded: boolean;
+  path: string | null;
+  gpuInfo: GpuInfo;
 }
 
 export interface WhisperCheckResult {
@@ -67,6 +128,8 @@ export interface UpdateStatusResult {
   updateAvailable: boolean;
   updateDownloaded: boolean;
   isDevelopment: boolean;
+  updaterEnabled: boolean;
+  updaterDisabledReason: "development" | "local_build" | null;
 }
 
 export interface UpdateInfoResult {
@@ -169,6 +232,47 @@ export interface PasteToolsResult {
   recommendedInstall?: string;
 }
 
+export type GpuBackend = "vulkan" | "cpu" | "metal" | null;
+
+export interface LlamaServerStatus {
+  available: boolean;
+  running: boolean;
+  port: number | null;
+  modelPath: string | null;
+  modelName: string | null;
+  backend: GpuBackend;
+  gpuAccelerated: boolean;
+}
+
+export interface VulkanGpuResult {
+  available: boolean;
+  deviceName?: string;
+  reason?: string;
+  error?: string;
+}
+
+export interface LlamaVulkanStatus {
+  supported: boolean;
+  downloaded: boolean;
+  downloading?: boolean;
+  error?: string;
+}
+
+export interface LlamaVulkanDownloadProgress {
+  downloaded: number;
+  total: number;
+  percentage: number;
+}
+
+export interface ReferralItem {
+  id: string;
+  email: string;
+  name: string | null;
+  status: "pending" | "completed" | "rewarded";
+  created_at: string;
+  first_payment_at: string | null;
+}
+
 declare global {
   interface Window {
     electronAPI: {
@@ -180,18 +284,148 @@ declare global {
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
 
+      // STT config
+      getSttConfig?: () => Promise<{
+        success: boolean;
+        dictation: { mode: string };
+        notes: { mode: string };
+        streamingProvider: string;
+      } | null>;
+
       // Database operations
-      saveTranscription: (text: string) => Promise<{ id: number; success: boolean }>;
+      saveTranscription: (
+        text: string,
+        rawText?: string | null,
+        options?: { status?: TranscriptionStatus; errorMessage?: string | null }
+      ) => Promise<{ id: number; success: boolean; transcription?: TranscriptionItem }>;
       getTranscriptions: (limit?: number) => Promise<TranscriptionItem[]>;
       clearTranscriptions: () => Promise<{ cleared: number; success: boolean }>;
       deleteTranscription: (id: number) => Promise<{ success: boolean }>;
+      getTranscriptionById: (id: number) => Promise<TranscriptionItem | null>;
+
+      // Audio retention operations
+      saveTranscriptionAudio: (
+        id: number,
+        audioBuffer: ArrayBuffer,
+        metadata?: { durationMs?: number; provider?: string; model?: string }
+      ) => Promise<{ success: boolean; path?: string }>;
+      getAudioPath: (id: number) => Promise<string | null>;
+      showAudioInFolder: (id: number) => Promise<{ success: boolean }>;
+      getAudioBuffer: (id: number) => Promise<ArrayBuffer | null>;
+      deleteTranscriptionAudio: (id: number) => Promise<{ success: boolean }>;
+      getAudioStorageUsage: () => Promise<{ fileCount: number; totalBytes: number }>;
+      deleteAllAudio: () => Promise<{ deleted: number }>;
+      retryTranscription: (
+        id: number
+      ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
+      updateTranscriptionText: (
+        id: number,
+        text: string,
+        rawText: string
+      ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
 
       // Dictionary operations
       getDictionary: () => Promise<string[]>;
       setDictionary: (words: string[]) => Promise<{ success: boolean }>;
+      onDictionaryUpdated?: (callback: (words: string[]) => void) => () => void;
+      setAutoLearnEnabled?: (enabled: boolean) => void;
+      onCorrectionsLearned?: (callback: (words: string[]) => void) => () => void;
+      undoLearnedCorrections?: (words: string[]) => Promise<{ success: boolean }>;
+
+      // Note operations
+      saveNote: (
+        title: string,
+        content: string,
+        noteType?: string,
+        sourceFile?: string | null,
+        audioDuration?: number | null,
+        folderId?: number | null
+      ) => Promise<{ success: boolean; note?: NoteItem }>;
+      getNote: (id: number) => Promise<NoteItem | null>;
+      getNotes: (
+        noteType?: string | null,
+        limit?: number,
+        folderId?: number | null
+      ) => Promise<NoteItem[]>;
+      updateNote: (
+        id: number,
+        updates: {
+          title?: string;
+          content?: string;
+          enhanced_content?: string | null;
+          enhancement_prompt?: string | null;
+          enhanced_at_content_hash?: string | null;
+          folder_id?: number | null;
+          transcript?: string | null;
+          calendar_event_id?: string | null;
+        }
+      ) => Promise<{ success: boolean; note?: NoteItem }>;
+      deleteNote: (id: number) => Promise<{ success: boolean }>;
+      exportNote: (
+        noteId: number,
+        format: "txt" | "md"
+      ) => Promise<{ success: boolean; error?: string }>;
+      searchNotes: (query: string, limit?: number) => Promise<NoteItem[]>;
+      updateNoteCloudId: (id: number, cloudId: string) => Promise<NoteItem>;
+
+      // Folder operations
+      getFolders: () => Promise<FolderItem[]>;
+      createFolder: (
+        name: string
+      ) => Promise<{ success: boolean; folder?: FolderItem; error?: string }>;
+      deleteFolder: (id: number) => Promise<{ success: boolean; error?: string }>;
+      renameFolder: (
+        id: number,
+        name: string
+      ) => Promise<{ success: boolean; folder?: FolderItem; error?: string }>;
+      getFolderNoteCounts: () => Promise<Array<{ folder_id: number; count: number }>>;
+
+      // Action operations
+      getActions: () => Promise<ActionItem[]>;
+      getAction: (id: number) => Promise<ActionItem | null>;
+      createAction: (
+        name: string,
+        description: string,
+        prompt: string,
+        icon?: string
+      ) => Promise<{ success: boolean; action?: ActionItem; error?: string }>;
+      updateAction: (
+        id: number,
+        updates: {
+          name?: string;
+          description?: string;
+          prompt?: string;
+          icon?: string;
+          sort_order?: number;
+        }
+      ) => Promise<{ success: boolean; action?: ActionItem; error?: string }>;
+      deleteAction: (id: number) => Promise<{ success: boolean; id?: number; error?: string }>;
+      onActionCreated?: (callback: (action: ActionItem) => void) => () => void;
+      onActionUpdated?: (callback: (action: ActionItem) => void) => () => void;
+      onActionDeleted?: (callback: (payload: { id: number }) => void) => () => void;
+
+      // Audio file operations
+      selectAudioFile: () => Promise<{ canceled: boolean; filePath?: string }>;
+      getFileSize?: (filePath: string) => Promise<number>;
+      transcribeAudioFile: (
+        filePath: string,
+        options?: {
+          provider?: "whisper" | "nvidia";
+          model?: string;
+          language?: string;
+          [key: string]: unknown;
+        }
+      ) => Promise<{ success: boolean; text?: string; error?: string }>;
+      getPathForFile: (file: File) => string;
+
+      // Note event listeners
+      onNoteAdded?: (callback: (note: NoteItem) => void) => () => void;
+      onNoteUpdated?: (callback: (note: NoteItem) => void) => () => void;
+      onNoteDeleted?: (callback: (payload: { id: number }) => void) => () => void;
 
       // Database event listeners
       onTranscriptionAdded?: (callback: (item: TranscriptionItem) => void) => () => void;
+      onTranscriptionUpdated?: (callback: (item: TranscriptionItem) => void) => () => void;
       onTranscriptionDeleted?: (callback: (payload: { id: number }) => void) => () => void;
       onTranscriptionsCleared?: (callback: (payload: { cleared: number }) => void) => () => void;
 
@@ -214,6 +448,8 @@ declare global {
       }) => Promise<void>;
 
       // Clipboard operations
+      checkAccessibilityPermission: (silent?: boolean) => Promise<boolean>;
+      promptAccessibilityPermission: () => Promise<boolean>;
       readClipboard: () => Promise<string>;
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
       checkPasteTools: () => Promise<PasteToolsResult>;
@@ -243,6 +479,21 @@ declare global {
         message?: string;
         error?: string;
       }>;
+
+      // CUDA GPU acceleration
+      detectGpu: () => Promise<GpuInfo>;
+      getCudaWhisperStatus: () => Promise<CudaWhisperStatus>;
+      downloadCudaWhisperBinary: () => Promise<{ success: boolean; error?: string }>;
+      cancelCudaWhisperDownload: () => Promise<{ success: boolean }>;
+      deleteCudaWhisperBinary: () => Promise<{ success: boolean }>;
+      onCudaDownloadProgress: (
+        callback: (data: {
+          downloadedBytes: number;
+          totalBytes: number;
+          percentage: number;
+        }) => void
+      ) => () => void;
+      onCudaFallbackNotification: (callback: () => void) => () => void;
 
       // Parakeet operations (NVIDIA via sherpa-onnx)
       transcribeLocalParakeet: (
@@ -274,10 +525,31 @@ declare global {
       // Local AI model management
       modelGetAll: () => Promise<any[]>;
       modelCheck: (modelId: string) => Promise<boolean>;
-      modelDownload: (modelId: string) => Promise<void>;
-      modelDelete: (modelId: string) => Promise<void>;
-      modelDeleteAll: () => Promise<{ success: boolean; error?: string; code?: string }>;
-      modelCheckRuntime: () => Promise<boolean>;
+      modelDownload: (modelId: string) => Promise<{
+        success: boolean;
+        path?: string;
+        error?: string;
+        code?: string;
+        details?: string;
+      }>;
+      modelDelete: (modelId: string) => Promise<{
+        success: boolean;
+        error?: string;
+        code?: string;
+        details?: string;
+      }>;
+      modelDeleteAll: () => Promise<{
+        success: boolean;
+        error?: string;
+        code?: string;
+        details?: string;
+      }>;
+      modelCheckRuntime: () => Promise<{
+        available: boolean;
+        error?: string;
+        code?: string;
+        details?: string;
+      }>;
       modelCancelDownload: (modelId: string) => Promise<{ success: boolean; error?: string }>;
       onModelDownloadProgress: (callback: (event: any, data: any) => void) => () => void;
 
@@ -303,11 +575,36 @@ declare global {
       llamaCppInstall: () => Promise<{ success: boolean; error?: string }>;
       llamaCppUninstall: () => Promise<{ success: boolean; error?: string }>;
 
+      // llama-server
+      llamaServerStart: (
+        modelId: string
+      ) => Promise<{ success: boolean; port?: number; error?: string }>;
+      llamaServerStop: () => Promise<{ success: boolean; error?: string }>;
+      llamaServerStatus: () => Promise<LlamaServerStatus>;
+      llamaGpuReset: () => Promise<{ success: boolean; error?: string }>;
+      detectVulkanGpu?: () => Promise<VulkanGpuResult>;
+      getLlamaVulkanStatus?: () => Promise<LlamaVulkanStatus>;
+      downloadLlamaVulkanBinary?: () => Promise<{
+        success: boolean;
+        cancelled?: boolean;
+        error?: string;
+      }>;
+      cancelLlamaVulkanDownload?: () => Promise<{ success: boolean }>;
+      deleteLlamaVulkanBinary?: () => Promise<{
+        success: boolean;
+        deletedCount?: number;
+        error?: string;
+      }>;
+      onLlamaVulkanDownloadProgress?: (
+        callback: (data: LlamaVulkanDownloadProgress) => void
+      ) => () => void;
+
       // Window control operations
       windowMinimize: () => Promise<void>;
       windowMaximize: () => Promise<void>;
       windowClose: () => Promise<void>;
       windowIsMaximized: () => Promise<boolean>;
+      restoreFromMeetingMode: () => Promise<void>;
       getPlatform: () => string;
       startWindowDrag: () => Promise<void>;
       stopWindowDrag: () => Promise<void>;
@@ -315,7 +612,7 @@ declare global {
 
       // App management
       appQuit: () => Promise<void>;
-      cleanupApp: () => Promise<{ success: boolean; message: string }>;
+      cleanupApp: () => Promise<{ success: boolean; message: string; errors?: string[] }>;
 
       // Update operations
       checkForUpdates: () => Promise<UpdateCheckResult>;
@@ -340,7 +637,25 @@ declare global {
         enabled: boolean,
         newHotkey?: string | null
       ) => Promise<{ success: boolean }>;
-      getHotkeyModeInfo?: () => Promise<{ isUsingGnome: boolean }>;
+      getHotkeyModeInfo?: () => Promise<{
+        isUsingGnome: boolean;
+        isUsingHyprland: boolean;
+        isUsingNativeShortcut: boolean;
+      }>;
+
+      // Wayland paste diagnostics
+      getYdotoolStatus?: () => Promise<{
+        isLinux: boolean;
+        isWayland: boolean;
+        hasYdotool: boolean;
+        hasYdotoold: boolean;
+        daemonRunning: boolean;
+        hasService: boolean;
+        hasUinput: boolean;
+        hasUdevRule: boolean;
+        hasGroup: boolean;
+        allGood: boolean;
+      }>;
 
       // Globe key listener for hotkey capture (macOS only)
       onGlobeKeyPressed?: (callback: () => void) => () => void;
@@ -353,6 +668,11 @@ declare global {
       onHotkeyRegistrationFailed?: (
         callback: (data: { hotkey: string; error: string; suggestions: string[] }) => void
       ) => () => void;
+      onSettingUpdated?: (callback: (data: { key: string; value: unknown }) => void) => () => void;
+
+      // Accessibility permission events (macOS)
+      onAccessibilityMissing?: (callback: () => void) => () => void;
+      checkAccessibilityTrusted?: () => Promise<boolean>;
 
       // Gemini API key management
       getGeminiKey: () => Promise<string | null>;
@@ -414,16 +734,24 @@ declare global {
 
       // System settings helpers
       requestMicrophoneAccess?: () => Promise<{ granted: boolean }>;
+      checkSystemAudioAccess?: () => Promise<{ granted: boolean }>;
       openMicrophoneSettings?: () => Promise<{ success: boolean; error?: string }>;
       openSoundInputSettings?: () => Promise<{ success: boolean; error?: string }>;
       openAccessibilitySettings?: () => Promise<{ success: boolean; error?: string }>;
+      openSystemAudioSettings?: () => Promise<{ success: boolean; error?: string }>;
+      toggleMediaPlayback?: () => Promise<boolean>;
+      pauseMediaPlayback?: () => Promise<boolean>;
+      resumeMediaPlayback?: () => Promise<boolean>;
       openWhisperModelsFolder?: () => Promise<{ success: boolean; error?: string }>;
 
       // Windows Push-to-Talk notifications
       notifyActivationModeChanged?: (mode: "tap" | "push") => void;
       notifyHotkeyChanged?: (hotkey: string) => void;
+      registerMeetingHotkey?: (hotkey: string) => Promise<{ success: boolean; message?: string }>;
       notifyFloatingIconAutoHideChanged?: (enabled: boolean) => void;
       onFloatingIconAutoHideChanged?: (callback: (enabled: boolean) => void) => () => void;
+      notifyStartMinimizedChanged?: (enabled: boolean) => void;
+      notifyPanelStartPositionChanged?: (position: string) => void;
 
       // Auto-start at login
       getAutoStartEnabled?: () => Promise<boolean>;
@@ -435,7 +763,7 @@ declare global {
       // OpenWhispr Cloud API
       cloudTranscribe?: (
         audioBuffer: ArrayBuffer,
-        opts: { language?: string; prompt?: string }
+        opts: { language?: string; prompt?: string; useCase?: string; diarization?: boolean }
       ) => Promise<{
         success: boolean;
         text?: string;
@@ -463,6 +791,27 @@ declare global {
         error?: string;
         code?: string;
       }>;
+      cloudStreamingUsage?: (
+        text: string,
+        audioDurationSeconds: number,
+        opts?: {
+          sendLogs?: boolean;
+          sttProvider?: string;
+          sttModel?: string;
+          sttProcessingMs?: number;
+          sttLanguage?: string;
+          audioSizeBytes?: number;
+          audioFormat?: string;
+          clientTotalMs?: number;
+        }
+      ) => Promise<{
+        success: boolean;
+        wordsUsed?: number;
+        wordsRemaining?: number;
+        limitReached?: boolean;
+        error?: string;
+        code?: string;
+      }>;
       cloudUsage?: () => Promise<{
         success: boolean;
         wordsUsed?: number;
@@ -474,11 +823,15 @@ declare global {
         isTrial?: boolean;
         trialDaysLeft?: number | null;
         currentPeriodEnd?: string | null;
+        billingInterval?: "monthly" | "annual" | null;
         resetAt?: string;
         error?: string;
         code?: string;
       }>;
-      cloudCheckout?: () => Promise<{
+      cloudCheckout?: (opts?: {
+        plan?: "monthly" | "annual";
+        tier?: "pro" | "business";
+      }) => Promise<{
         success: boolean;
         url?: string;
         error?: string;
@@ -489,6 +842,53 @@ declare global {
         url?: string;
         error?: string;
         code?: string;
+      }>;
+      cloudSwitchPlan?: (opts: {
+        plan: "monthly" | "annual";
+        tier: "pro" | "business";
+      }) => Promise<{
+        success: boolean;
+        alreadyOnPlan?: boolean;
+        error?: string;
+      }>;
+      cloudPreviewSwitch?: (opts: {
+        plan: "monthly" | "annual";
+        tier: "pro" | "business";
+      }) => Promise<{
+        success: boolean;
+        immediateAmount?: number;
+        currency?: string;
+        currentPriceAmount?: number;
+        currentInterval?: string;
+        newPriceAmount?: number;
+        newInterval?: string;
+        nextBillingDate?: string;
+        alreadyOnPlan?: boolean;
+        error?: string;
+      }>;
+
+      // Cloud audio file transcription
+      transcribeAudioFileCloud?: (filePath: string) => Promise<{
+        success: boolean;
+        text?: string;
+        error?: string;
+        code?: string;
+      }>;
+
+      onUploadTranscriptionProgress?: (
+        callback: (data: { stage: string; chunksTotal: number; chunksCompleted: number }) => void
+      ) => () => void;
+
+      // BYOK audio file transcription
+      transcribeAudioFileByok?: (options: {
+        filePath: string;
+        apiKey: string;
+        baseUrl: string;
+        model: string;
+      }) => Promise<{
+        success: boolean;
+        text?: string;
+        error?: string;
       }>;
 
       // Usage limit events
@@ -513,10 +913,7 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      assemblyAiStreamingSend?: (audioBuffer: ArrayBuffer) => Promise<{
-        success: boolean;
-        error?: string;
-      }>;
+      assemblyAiStreamingSend?: (audioBuffer: ArrayBuffer) => void;
       assemblyAiStreamingForceEndpoint?: () => void;
       assemblyAiStreamingStop?: () => Promise<{
         success: boolean;
@@ -534,6 +931,100 @@ declare global {
         callback: (data: { audioDuration?: number; text?: string }) => void
       ) => () => void;
 
+      // Referral stats
+      getReferralStats?: () => Promise<{
+        referralCode: string;
+        referralLink: string;
+        totalReferrals: number;
+        completedReferrals: number;
+        pendingReferrals: number;
+        totalMonthsEarned: number;
+        referrals: Array<{
+          id: string;
+          email: string;
+          name: string;
+          status: "pending" | "completed" | "rewarded";
+          created_at: string;
+          first_payment_at: string | null;
+          words_used: number;
+        }>;
+      }>;
+
+      sendReferralInvite?: (email: string) => Promise<{
+        success: boolean;
+        invite: {
+          id: string;
+          recipientEmail: string;
+          status: "sent" | "failed" | "opened" | "converted";
+          sentAt: string;
+        };
+      }>;
+
+      getReferralInvites?: () => Promise<{
+        invites: Array<{
+          id: string;
+          recipientEmail: string;
+          status: "sent" | "failed" | "opened" | "converted";
+          sentAt: string;
+          openedAt?: string;
+          convertedAt?: string;
+        }>;
+      }>;
+
+      // Agent Mode
+      updateAgentHotkey?: (hotkey: string) => Promise<{ success: boolean; message: string }>;
+      getAgentKey?: () => Promise<string>;
+      saveAgentKey?: (key: string) => Promise<void>;
+      createAgentConversation?: (title: string) => Promise<{
+        id: number;
+        title: string;
+        created_at: string;
+        updated_at: string;
+      }>;
+      getAgentConversations?: (limit?: number) => Promise<
+        Array<{
+          id: number;
+          title: string;
+          created_at: string;
+          updated_at: string;
+        }>
+      >;
+      getAgentConversation?: (id: number) => Promise<{
+        id: number;
+        title: string;
+        created_at: string;
+        updated_at: string;
+        messages: Array<{
+          id: number;
+          conversation_id: number;
+          role: "user" | "assistant" | "system";
+          content: string;
+          created_at: string;
+        }>;
+      } | null>;
+      deleteAgentConversation?: (id: number) => Promise<{ success: boolean }>;
+      updateAgentConversationTitle?: (id: number, title: string) => Promise<{ success: boolean }>;
+      addAgentMessage?: (
+        conversationId: number,
+        role: "user" | "assistant" | "system",
+        content: string
+      ) => Promise<{
+        id: number;
+        conversation_id: number;
+        role: string;
+        content: string;
+        created_at: string;
+      }>;
+      getAgentMessages?: (conversationId: number) => Promise<
+        Array<{
+          id: number;
+          conversation_id: number;
+          role: "user" | "assistant" | "system";
+          content: string;
+          created_at: string;
+        }>
+      >;
+
       // Deepgram Streaming
       deepgramStreamingWarmup?: (options?: { sampleRate?: number; language?: string }) => Promise<{
         success: boolean;
@@ -541,7 +1032,11 @@ declare global {
         error?: string;
         code?: string;
       }>;
-      deepgramStreamingStart?: (options?: { sampleRate?: number; language?: string }) => Promise<{
+      deepgramStreamingStart?: (options?: {
+        sampleRate?: number;
+        language?: string;
+        forceNew?: boolean;
+      }) => Promise<{
         success: boolean;
         usedWarmConnection?: boolean;
         error?: string;
@@ -563,6 +1058,137 @@ declare global {
       onDeepgramError?: (callback: (error: string) => void) => () => void;
       onDeepgramSessionEnd?: (
         callback: (data: { audioDuration?: number; text?: string }) => void
+      ) => () => void;
+
+      // Agent overlay
+      resizeAgentWindow?: (width: number, height: number) => Promise<void>;
+      getAgentWindowBounds?: () => Promise<{
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      } | null>;
+      setAgentWindowBounds?: (x: number, y: number, width: number, height: number) => Promise<void>;
+      hideAgentOverlay?: () => Promise<void>;
+      onAgentStartRecording?: (callback: () => void) => () => void;
+      onAgentStopRecording?: (callback: () => void) => () => void;
+      onAgentToggleRecording?: (callback: () => void) => () => void;
+
+      // Agent cloud streaming
+      cloudAgentStream?: (
+        messages: Array<{ role: string; content: string }>,
+        opts?: { systemPrompt?: string }
+      ) => Promise<{ success: boolean; error?: string; code?: string }>;
+      onAgentStreamChunk?: (callback: (chunk: string) => void) => () => void;
+      onAgentStreamDone?: (callback: () => void) => () => void;
+
+      // Google Calendar
+      gcalStartOAuth?: () => Promise<{ success: boolean; email?: string; error?: string }>;
+      gcalDisconnect?: (email?: string) => Promise<{ success: boolean; error?: string }>;
+      gcalGetConnectionStatus?: () => Promise<{
+        connected: boolean;
+        accounts: Array<{ email: string }>;
+        email: string | null;
+      }>;
+      gcalGetCalendars?: () => Promise<{ success: boolean; calendars: any[] }>;
+      gcalSetCalendarSelection?: (
+        calendarId: string,
+        isSelected: boolean
+      ) => Promise<{ success: boolean; error?: string }>;
+      gcalSyncEvents?: () => Promise<{ success: boolean; error?: string }>;
+      gcalGetUpcomingEvents?: (
+        windowMinutes?: number
+      ) => Promise<{ success: boolean; events: any[] }>;
+
+      // Meeting chain transcription (BaseTen)
+      meetingTranscribeChain?: (
+        blobUrl: string,
+        opts?: {
+          skipCleanup?: boolean;
+          agentName?: string;
+          customDictionary?: string[];
+        }
+      ) => Promise<{
+        success: boolean;
+        text?: string;
+        rawText?: string;
+        cleanedText?: string;
+        processingDurationSec?: number;
+        speedupFactor?: number;
+        error?: string;
+      }>;
+
+      // Meeting transcription (streaming, dual-channel)
+      meetingTranscriptionPrepare?: (options: {
+        provider?: string;
+        model?: string;
+        language?: string;
+      }) => Promise<{ success: boolean; alreadyPrepared?: boolean; error?: string }>;
+      meetingTranscriptionStart?: (options: {
+        provider?: string;
+        model?: string;
+        language?: string;
+      }) => Promise<{ success: boolean; error?: string }>;
+      meetingTranscriptionSend?: (buffer: ArrayBuffer, source: "mic" | "system") => void;
+      meetingTranscriptionStop?: () => Promise<{
+        success: boolean;
+        transcript?: string;
+        error?: string;
+      }>;
+      onMeetingTranscriptionSegment?: (
+        callback: (data: {
+          text: string;
+          source: "mic" | "system";
+          type: "partial" | "final";
+        }) => void
+      ) => () => void;
+      onMeetingTranscriptionError?: (callback: (error: string) => void) => () => void;
+
+      // Dictation realtime streaming
+      dictationRealtimeWarmup?: (options: {
+        model?: string;
+        mode?: "byok" | "openwhispr";
+      }) => Promise<{ success: boolean; error?: string }>;
+      dictationRealtimeStart?: (options: {
+        model?: string;
+        mode?: "byok" | "openwhispr";
+      }) => Promise<{ success: boolean; error?: string }>;
+      dictationRealtimeSend?: (buffer: ArrayBuffer) => void;
+      dictationRealtimeStop?: () => Promise<{ success: boolean; text: string }>;
+      onDictationRealtimePartial?: (callback: (text: string) => void) => () => void;
+      onDictationRealtimeFinal?: (callback: (text: string) => void) => () => void;
+      onDictationRealtimeError?: (callback: (error: string) => void) => () => void;
+      onDictationRealtimeSessionEnd?: (callback: (data: { text: string }) => void) => () => void;
+
+      // Desktop audio capture
+      getDesktopSources?: (types: string[]) => Promise<Array<{ id: string; name: string }>>;
+
+      // Google Calendar event listeners
+      onGcalMeetingStarting?: (callback: (data: any) => void) => () => void;
+      onGcalMeetingEnded?: (callback: (data: any) => void) => () => void;
+      onGcalStartRecording?: (callback: (data: any) => void) => () => void;
+      onGcalConnectionChanged?: (callback: (data: any) => void) => () => void;
+      onGcalEventsSynced?: (callback: (data: any) => void) => () => void;
+
+      meetingDetectionGetPreferences?: () => Promise<{ success: boolean; preferences?: any }>;
+      meetingDetectionSetPreferences?: (
+        prefs: Record<string, boolean>
+      ) => Promise<{ success: boolean }>;
+      meetingDetectionRespond?: (
+        detectionId: string,
+        action: string
+      ) => Promise<{ success: boolean }>;
+      onMeetingDetected?: (callback: (data: any) => void) => () => void;
+      onMeetingDetectedStartRecording?: (callback: (data: any) => void) => () => void;
+      onMeetingNotificationData?: (callback: (data: any) => void) => () => void;
+      getMeetingNotificationData?: () => Promise<any>;
+      meetingNotificationReady?: () => Promise<void>;
+      meetingNotificationRespond?: (
+        detectionId: string,
+        action: string
+      ) => Promise<{ success: boolean }>;
+      onNavigateToMeetingNote?: (
+        callback: (data: { noteId: number; folderId: number; event: any }) => void
       ) => () => void;
     };
 

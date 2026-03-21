@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+const { spawnSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 
 class UpdateManager {
@@ -10,6 +13,11 @@ class UpdateManager {
     this.isInstalling = false;
     this.isDownloading = false;
     this.eventListeners = [];
+    this.updateCheckInterval = null;
+    this.windowManager = null;
+    this._suppressNotification = false;
+    this.updaterEnabled = false;
+    this.updaterDisabledReason = null;
 
     this.setupAutoUpdater();
   }
@@ -19,14 +27,69 @@ class UpdateManager {
     this.controlPanelWindow = controlPanelWindow;
   }
 
-  setupAutoUpdater() {
-    // Only configure auto-updater in production
+  setWindowManager(windowManager) {
+    this.windowManager = windowManager;
+  }
+
+  resolveUpdaterAvailability() {
     if (process.env.NODE_ENV === "development") {
-      // Auto-updater disabled in development mode
+      return {
+        enabled: false,
+        reason: "development",
+        detail: "Running in development mode",
+      };
+    }
+
+    const updateConfigPath = path.join(process.resourcesPath || "", "app-update.yml");
+    if (!process.resourcesPath || !fs.existsSync(updateConfigPath)) {
+      return {
+        enabled: false,
+        reason: "local_build",
+        detail: "Missing app-update.yml in app resources",
+      };
+    }
+
+    if (process.platform === "darwin") {
+      const codesign = spawnSync("/usr/bin/codesign", ["-dv", "--verbose=4", process.execPath], {
+        encoding: "utf8",
+      });
+      const output = `${codesign.stdout || ""}\n${codesign.stderr || ""}`;
+      if (/Signature=adhoc/i.test(output)) {
+        return {
+          enabled: false,
+          reason: "local_build",
+          detail: "App is ad hoc signed",
+        };
+      }
+    }
+
+    return {
+      enabled: true,
+      reason: null,
+      detail: null,
+    };
+  }
+
+  getUpdaterDisabledMessage() {
+    if (this.updaterDisabledReason === "development") {
+      return "In-app updates are disabled in development mode";
+    }
+
+    return "In-app updates are disabled for local builds. Pull the latest changes and rebuild the app instead.";
+  }
+
+  setupAutoUpdater() {
+    const availability = this.resolveUpdaterAvailability();
+    this.updaterEnabled = availability.enabled;
+    this.updaterDisabledReason = availability.reason;
+
+    if (!this.updaterEnabled) {
+      console.log(
+        `ℹ️ In-app updater disabled (${availability.reason || "unknown"}): ${availability.detail || "no additional detail"}`
+      );
       return;
     }
 
-    // Configure auto-updater for GitHub releases
     autoUpdater.setFeedURL({
       provider: "github",
       owner: "OpenWhispr",
@@ -34,18 +97,40 @@ class UpdateManager {
       private: false,
     });
 
-    // Disable auto-download - let user control when to download
+    // Use arch-specific update channel on macOS to prevent arm64/x64
+    // from downloading mismatched artifacts. Both builds publish to the
+    // same GitHub release, so without this they race on latest-mac.yml.
+    // Setting channel to e.g. 'latest-arm64' makes the updater look for
+    // 'latest-arm64-mac.yml' instead of the shared 'latest-mac.yml'.
+    if (process.platform === "darwin") {
+      let nativeArch = process.arch;
+
+      // Detect Rosetta: if an x64 build is running on Apple Silicon,
+      // sysctl.proc_translated returns "1". This self-heals users who
+      // got stuck on the x64 build from older releases.
+      if (process.arch === "x64") {
+        try {
+          const { execSync } = require("child_process");
+          const translated = execSync("sysctl -n sysctl.proc_translated", {
+            encoding: "utf8",
+            timeout: 3000,
+          }).trim();
+          if (translated === "1") {
+            console.log("🔄 Rosetta detected — switching update channel to arm64");
+            nativeArch = "arm64";
+          }
+        } catch {
+          // sysctl.proc_translated doesn't exist on real Intel Macs — ignore
+        }
+      }
+
+      autoUpdater.channel = nativeArch === "arm64" ? "latest-arm64" : "latest-x64";
+    }
+
     autoUpdater.autoDownload = false;
-
-    // Enable auto-install on quit - if user ignores update and quits normally,
-    // the update will install automatically (best UX)
-    // User can also manually trigger install with "Install & Restart" button
     autoUpdater.autoInstallOnAppQuit = true;
-
-    // Enable logging in production for debugging (logs are user-accessible)
     autoUpdater.logger = console;
 
-    // Set up event handlers
     this.setupEventHandlers();
   }
 
@@ -65,16 +150,25 @@ class UpdateManager {
           };
         }
         this.notifyRenderers("update-available", info);
+        if (this.windowManager && info && !this._suppressNotification) {
+          this.windowManager.showUpdateNotification(info).catch((err) => {
+            console.error("Failed to show update notification:", err);
+          });
+        }
+        this._suppressNotification = false;
       },
       "update-not-available": (info) => {
         this.updateAvailable = false;
-        this.updateDownloaded = false;
-        this.isDownloading = false;
-        this.lastUpdateInfo = null;
+        this._suppressNotification = false;
+        if (!this.updateDownloaded) {
+          this.isDownloading = false;
+          this.lastUpdateInfo = null;
+        }
         this.notifyRenderers("update-not-available", info);
       },
       error: (err) => {
         console.error("❌ Auto-updater error:", err);
+        this._suppressNotification = false;
         this.isDownloading = false;
         this.notifyRenderers("update-error", err);
       },
@@ -100,7 +194,6 @@ class UpdateManager {
       },
     };
 
-    // Register and track event listeners for cleanup
     Object.entries(handlers).forEach(([event, handler]) => {
       autoUpdater.on(event, handler);
       this.eventListeners.push({ event, handler });
@@ -122,22 +215,19 @@ class UpdateManager {
 
   async checkForUpdates() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           updateAvailable: false,
-          message: "Update checks are disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
       console.log("🔍 Checking for updates...");
+      this._suppressNotification = true;
       const result = await autoUpdater.checkForUpdates();
 
       if (result?.isUpdateAvailable && result?.updateInfo) {
         console.log("📋 Update available:", result.updateInfo.version);
-        console.log(
-          "📦 Download size:",
-          result.updateInfo.files?.map((f) => `${(f.size / 1024 / 1024).toFixed(2)}MB`).join(", ")
-        );
         return {
           updateAvailable: true,
           version: result.updateInfo.version,
@@ -160,10 +250,10 @@ class UpdateManager {
 
   async downloadUpdate() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           success: false,
-          message: "Update downloads are disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
@@ -196,10 +286,10 @@ class UpdateManager {
 
   async installUpdate() {
     try {
-      if (process.env.NODE_ENV === "development") {
+      if (!this.updaterEnabled) {
         return {
           success: false,
-          message: "Update installation is disabled in development mode",
+          message: this.getUpdaterDisabledMessage(),
         };
       }
 
@@ -222,8 +312,8 @@ class UpdateManager {
 
       const { app, BrowserWindow } = require("electron");
 
-      // Remove listeners that prevent windows from closing
-      // so quitAndInstall can shut down cleanly
+      // Set windowManager.isQuitting before removing close listeners
+      app.emit("before-quit");
       app.removeAllListeners("window-all-closed");
       BrowserWindow.getAllWindows().forEach((win) => {
         win.removeAllListeners("close");
@@ -256,6 +346,8 @@ class UpdateManager {
         updateAvailable: this.updateAvailable,
         updateDownloaded: this.updateDownloaded,
         isDevelopment: process.env.NODE_ENV === "development",
+        updaterEnabled: this.updaterEnabled,
+        updaterDisabledReason: this.updaterDisabledReason,
       };
     } catch (error) {
       console.error("❌ Error getting update status:", error);
@@ -273,17 +365,29 @@ class UpdateManager {
   }
 
   checkForUpdatesOnStartup() {
-    if (process.env.NODE_ENV !== "development") {
+    if (this.updaterEnabled) {
       setTimeout(() => {
         console.log("🔄 Checking for updates on startup...");
         autoUpdater.checkForUpdates().catch((err) => {
           console.error("Startup update check failed:", err);
         });
       }, 3000);
+
+      const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+      this.updateCheckInterval = setInterval(() => {
+        console.log("🔄 Periodic update check...");
+        autoUpdater.checkForUpdates().catch((err) => {
+          console.error("Periodic update check failed:", err);
+        });
+      }, FOUR_HOURS_MS);
     }
   }
 
   cleanup() {
+    if (this.updateCheckInterval) {
+      clearInterval(this.updateCheckInterval);
+      this.updateCheckInterval = null;
+    }
     this.eventListeners.forEach(({ event, handler }) => {
       autoUpdater.removeListener(event, handler);
     });

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { PasteToolsResult } from "../types/electron";
@@ -11,6 +11,7 @@ export interface UsePermissionsReturn {
   micPermissionError: string | null;
   pasteToolsInfo: PasteToolsResult | null;
   isCheckingPasteTools: boolean;
+  accessibilityTroubleshooting: boolean;
 
   requestMicPermission: () => Promise<void>;
   testAccessibilityPermission: () => Promise<void>;
@@ -124,6 +125,9 @@ export const usePermissions = (
   );
   const [pasteToolsInfo, setPasteToolsInfo] = useState<PasteToolsResult | null>(null);
   const [isCheckingPasteTools, setIsCheckingPasteTools] = useState(false);
+  const [accessibilityTroubleshooting, setAccessibilityTroubleshooting] = useState(false);
+  const accessibilityPollCount = useRef(0);
+  const hasPromptedAccessibility = useRef(false);
 
   const openSystemSettings = useCallback(
     async (
@@ -166,10 +170,18 @@ export const usePermissions = (
     [openSystemSettings]
   );
 
-  const openAccessibilitySettings = useCallback(
-    () => openSystemSettings("accessibility", window.electronAPI?.openAccessibilitySettings),
-    [openSystemSettings]
-  );
+  const openAccessibilitySettings = useCallback(async () => {
+    // On first click, trigger the macOS system prompt to create a TCC entry
+    if (!hasPromptedAccessibility.current) {
+      hasPromptedAccessibility.current = true;
+      try {
+        await window.electronAPI?.promptAccessibilityPermission?.();
+      } catch {
+        // Ignore — falls through to opening System Settings
+      }
+    }
+    await openSystemSettings("accessibility", window.electronAPI?.openAccessibilitySettings);
+  }, [openSystemSettings]);
 
   const requestMicPermission = useCallback(async () => {
     if (!navigator?.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
@@ -245,6 +257,43 @@ export const usePermissions = (
   useEffect(() => {
     checkPasteToolsAvailability();
   }, [checkPasteToolsAvailability]);
+
+  // On macOS, re-validate accessibility permission on mount to override stale
+  // localStorage values (e.g. after app update changes the code signature).
+  useEffect(() => {
+    if (getPlatform() !== "darwin") return;
+    window.electronAPI?.checkAccessibilityPermission?.(true).then((granted) => {
+      setAccessibilityPermissionGranted(granted);
+    });
+  }, [setAccessibilityPermissionGranted]);
+
+  // Poll for accessibility permission changes on macOS (e.g. user grants in System Settings)
+  useEffect(() => {
+    if (getPlatform() !== "darwin") return;
+    if (accessibilityPermissionGranted) {
+      setAccessibilityTroubleshooting(false);
+      accessibilityPollCount.current = 0;
+      return;
+    }
+
+    const interval = setInterval(() => {
+      window.electronAPI?.checkAccessibilityPermission?.(true).then((granted) => {
+        if (granted) {
+          setAccessibilityPermissionGranted(true);
+          setAccessibilityTroubleshooting(false);
+          accessibilityPollCount.current = 0;
+        } else {
+          accessibilityPollCount.current += 1;
+          // After ~10s of failed polls, show troubleshooting tips
+          if (accessibilityPollCount.current >= 5) {
+            setAccessibilityTroubleshooting(true);
+          }
+        }
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [accessibilityPermissionGranted, setAccessibilityPermissionGranted]);
 
   const testAccessibilityPermission = useCallback(async () => {
     const platform = getPlatform();
@@ -343,6 +392,7 @@ export const usePermissions = (
     micPermissionError,
     pasteToolsInfo,
     isCheckingPasteTools,
+    accessibilityTroubleshooting,
     requestMicPermission,
     testAccessibilityPermission,
     checkPasteToolsAvailability,
