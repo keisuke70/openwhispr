@@ -24,6 +24,7 @@ class OpenAIRealtimeStreaming {
     this.isDisconnecting = false;
     this.audioBytesSent = 0;
     this.model = "gpt-4o-mini-transcribe";
+    this.language = null;
     this.coldStartBuffer = [];
     this.coldStartBufferSize = 0;
     this.speechStartedAt = null;
@@ -36,7 +37,7 @@ class OpenAIRealtimeStreaming {
   }
 
   async connect(options = {}) {
-    const { apiKey, model, preconfigured } = options;
+    const { apiKey, model, preconfigured, language } = options;
     if (!apiKey) throw new Error("OpenAI API key is required");
 
     if (this.isConnected || this.isConnecting) {
@@ -47,6 +48,7 @@ class OpenAIRealtimeStreaming {
     this.isConnecting = true;
     this.model = model || "gpt-4o-mini-transcribe";
     this.preconfigured = !!preconfigured;
+    this.language = language || null;
     this.completedSegments = [];
     this.currentPartial = "";
     this.audioBytesSent = 0;
@@ -152,6 +154,7 @@ class OpenAIRealtimeStreaming {
                   input_audio_format: "pcm16",
                   input_audio_transcription: {
                     model: this.model,
+                    ...(this.language ? { language: this.language } : {}),
                   },
                   turn_detection: {
                     type: "server_vad",

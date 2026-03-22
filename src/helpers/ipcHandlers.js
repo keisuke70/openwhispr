@@ -89,6 +89,7 @@ function postMultipart(url, body, boundary, headers = {}) {
 }
 
 const DICTATION_WARM_CONNECTION_MAX_AGE_MS = 2 * 60 * 1000;
+const MEETING_WARM_CONNECTION_MAX_AGE_MS = 2 * 60 * 1000;
 
 class IPCHandlers {
   constructor(managers) {
@@ -2479,12 +2480,17 @@ class IPCHandlers {
         this._dictationStreaming = null;
       }
       const isCloud = options.mode !== "byok";
-      const apiKey = await fetchRealtimeToken(event, { mode: options.mode });
+      const apiKey = await fetchRealtimeToken(event, {
+        mode: options.mode,
+        model: options.model,
+        language: options.language,
+      });
       const streaming = new OpenAIRealtimeStreaming();
       setupDictationCallbacks(streaming, event);
       await streaming.connect({
         apiKey,
         model: options.model || "gpt-4o-mini-transcribe",
+        language: options.language,
         preconfigured: isCloud,
       });
       this._dictationStreaming = streaming;
@@ -2504,6 +2510,30 @@ class IPCHandlers {
       return ageMs >= 0 && ageMs < DICTATION_WARM_CONNECTION_MAX_AGE_MS;
     };
 
+    const canReuseMeetingStreaming = () => {
+      if (!this._meetingMicStreaming?.isConnected || !this._meetingSystemStreaming?.isConnected) {
+        return false;
+      }
+
+      const micAgeMs = this._meetingMicStreaming.sessionStartedAt
+        ? Date.now() - this._meetingMicStreaming.sessionStartedAt
+        : Number.POSITIVE_INFINITY;
+      const systemAgeMs = this._meetingSystemStreaming.sessionStartedAt
+        ? Date.now() - this._meetingSystemStreaming.sessionStartedAt
+        : Number.POSITIVE_INFINITY;
+      const oldestAgeMs = Math.max(micAgeMs, systemAgeMs);
+
+      if (oldestAgeMs >= MEETING_WARM_CONNECTION_MAX_AGE_MS) {
+        debugLogger.debug("Meeting warm connections expired; reconnecting", {
+          micAgeMs,
+          systemAgeMs,
+          maxAgeMs: MEETING_WARM_CONNECTION_MAX_AGE_MS,
+        });
+      }
+
+      return oldestAgeMs >= 0 && oldestAgeMs < MEETING_WARM_CONNECTION_MAX_AGE_MS;
+    };
+
     // Pre-warm: fetch tokens + connect WebSockets before user hits record
     ipcMain.handle("meeting-transcription-prepare", async (event, options = {}) => {
       if (meetingTranscriptionPrepareInProgress || meetingTranscriptionStartInProgress) {
@@ -2511,7 +2541,7 @@ class IPCHandlers {
         return { success: false, error: "Operation in progress" };
       }
 
-      if (this._meetingMicStreaming?.isConnected && this._meetingSystemStreaming?.isConnected) {
+      if (canReuseMeetingStreaming()) {
         debugLogger.debug("Meeting transcription already prepared (warm connections)");
         return { success: true, alreadyPrepared: true };
       }
@@ -2553,7 +2583,7 @@ class IPCHandlers {
       meetingTranscriptionStartInProgress = true;
       try {
         // If already prepared (warm connections from prepare), just re-attach handlers
-        if (this._meetingMicStreaming?.isConnected && this._meetingSystemStreaming?.isConnected) {
+        if (canReuseMeetingStreaming()) {
           debugLogger.debug("Meeting transcription start: reusing warm connections");
           const win = BrowserWindow.fromWebContents(event.sender);
           attachMeetingStreamingHandlers(this._meetingMicStreaming, win, "mic");

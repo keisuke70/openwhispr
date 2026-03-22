@@ -169,7 +169,7 @@ export function useNoteRecording({
 
     const state = manager.getState();
     if (state.isStreaming) {
-      manager.stopStreamingRecording();
+      manager.cancelStreamingRecording();
     } else {
       manager.cancelRecording();
     }

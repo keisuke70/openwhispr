@@ -178,6 +178,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return words.length > 0 ? words.join(", ") : null;
   }
 
+  buildTranscriptionPrompt(language) {
+    const parts = [];
+    const dictionaryPrompt = this.getCustomDictionaryPrompt();
+    if (dictionaryPrompt) {
+      parts.push(dictionaryPrompt);
+    }
+
+    if (language === "ja") {
+      parts.push(
+        "Transcribe in Japanese. Preserve clearly spoken English words and technical terms in English. Do not output Korean, Chinese, or other languages unless they are clearly spoken."
+      );
+    } else if (language === "en") {
+      parts.push(
+        "Transcribe in English. Preserve clearly spoken Japanese words and proper nouns when they are intentionally spoken."
+      );
+    }
+
+    return parts.length > 0 ? parts.join("\n") : null;
+  }
+
   setCallbacks({
     onStateChange,
     onError,
@@ -1308,7 +1328,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       opts.sendLogs = "false";
     }
 
-    const dictionaryPrompt = this.getCustomDictionaryPrompt();
+    const dictionaryPrompt = this.buildTranscriptionPrompt(language);
     if (dictionaryPrompt) opts.prompt = dictionaryPrompt;
 
     // Use withSessionRefresh to handle AUTH_EXPIRED automatically
@@ -1495,7 +1515,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       // Groq Whisper API limits prompt to 896 chars; OpenAI ~900 chars.
       // Truncate at last comma boundary so we never send a partial word.
       const MAX_PROMPT_CHARS = provider === "groq" ? 896 : 900;
-      let dictionaryPrompt = this.getCustomDictionaryPrompt();
+      let dictionaryPrompt = this.buildTranscriptionPrompt(language);
       if (dictionaryPrompt) {
         if (dictionaryPrompt.length > MAX_PROMPT_CHARS) {
           const originalLength = dictionaryPrompt.length;
@@ -2077,9 +2097,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             cloudTranscriptionModel,
             cloudTranscriptionMode,
           } = getSettings();
+          const normalizedLanguage = getBaseLanguageCode(warmupLang);
           const res = await provider.warmup({
             sampleRate: 16000,
-            language: warmupLang && warmupLang !== "auto" ? warmupLang : undefined,
+            language: normalizedLanguage,
             keyterms: this.getKeyterms(),
             model: cloudTranscriptionModel,
             mode: cloudTranscriptionMode === "byok" ? "byok" : "openwhispr",
@@ -2337,9 +2358,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           cloudTranscriptionModel,
           cloudTranscriptionMode,
         } = getSettings();
+        const normalizedLanguage = getBaseLanguageCode(preferredLang);
         const res = await provider.start({
           sampleRate: 16000,
-          language: preferredLang && preferredLang !== "auto" ? preferredLang : undefined,
+          language: normalizedLanguage,
           keyterms: this.getKeyterms(),
           model: cloudTranscriptionModel,
           mode: cloudTranscriptionMode === "byok" ? "byok" : "openwhispr",
@@ -2538,8 +2560,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       .trim();
     const looksLikeAccidentalOpenWhisprHallucination =
       !this.streamingHadTranscriptActivity &&
-      durationSeconds != null &&
-      durationSeconds < 1.5 &&
       ["openwhispr", "open whispr", "open whisper"].includes(normalizedFinalText);
 
     if (looksLikeAccidentalOpenWhisprHallucination) {
@@ -2575,9 +2595,58 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const streamingAudioBytesSent = stopResult?.audioBytesSent || 0;
     const streamingSttLanguage = getBaseLanguageCode(stSettings.preferredLanguage) || undefined;
     const streamingSttWordCount = finalText ? finalText.split(/\s+/).filter(Boolean).length : 0;
+    const hadAnyStreamingTranscriptActivity =
+      this.streamingHadTranscriptActivity || !!this.streamingPartialText || !!this.streamingFinalText;
+    const looksLikeEmptyShortDictation =
+      !hadAnyStreamingTranscriptActivity &&
+      typeof durationSeconds === "number" &&
+      durationSeconds < 3;
+
+    const streamingProviderName = this.getStreamingProviderName();
+    let finalSource = `${streamingProviderName}-streaming`;
+    let finalRawText = finalText;
+    let usedFinalBatchPass = false;
+
+    if (
+      streamingProviderName === "openai-realtime" &&
+      !looksLikeEmptyShortDictation &&
+      fallbackBlob?.size > 0 &&
+      typeof durationSeconds === "number" &&
+      durationSeconds > 0.5
+    ) {
+      logger.info(
+        "Realtime transcription complete; running batch finalization pass",
+        { durationSeconds, blobSize: fallbackBlob.size },
+        "streaming"
+      );
+      try {
+        const batchResult =
+          !stSettings.useLocalWhisper && stSettings.cloudTranscriptionMode !== "openwhispr"
+            ? await this.processWithOpenAIAPI(fallbackBlob, { durationSeconds })
+            : await this.processWithOpenWhisprCloud(fallbackBlob, { durationSeconds });
+
+        if (batchResult?.text) {
+          finalText = batchResult.text;
+          finalRawText = batchResult.rawText ?? batchResult.text;
+          finalSource = batchResult.source || finalSource;
+          usedFinalBatchPass = true;
+          logger.info(
+            "Batch finalization pass succeeded",
+            { source: finalSource, textLength: finalText.length },
+            "streaming"
+          );
+        }
+      } catch (error) {
+        logger.warn(
+          "Batch finalization pass failed; falling back to realtime transcript",
+          { error: error.message },
+          "streaming"
+        );
+      }
+    }
 
     let usedCloudReasoning = false;
-    if (stSettings.useReasoningModel && finalText && !this.skipReasoning) {
+    if (stSettings.useReasoningModel && finalText && !this.skipReasoning && !usedFinalBatchPass) {
       const reasoningStart = performance.now();
       const agentName = localStorage.getItem("agentName") || null;
       const cloudReasoningMode = stSettings.cloudReasoningMode || "openwhispr";
@@ -2651,7 +2720,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // If streaming produced no text, fall back to batch transcription
     // (batch fallback records usage server-side via /api/transcribe)
     let usedBatchFallback = false;
-    if (!finalText && durationSeconds > 2 && fallbackBlob?.size > 0) {
+    if (
+      !looksLikeEmptyShortDictation &&
+      !usedFinalBatchPass &&
+      !finalText &&
+      durationSeconds > 2 &&
+      fallbackBlob?.size > 0
+    ) {
       logger.info(
         "Streaming produced no text, falling back to batch transcription",
         { durationSeconds, blobSize: fallbackBlob.size },
@@ -2669,6 +2744,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
               });
         if (batchResult?.text) {
           finalText = batchResult.text;
+          finalRawText = batchResult.rawText ?? batchResult.text;
+          finalSource = batchResult.source || finalSource;
           usedBatchFallback = true;
           logger.info(
             "Batch fallback succeeded",
@@ -2684,6 +2761,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
     }
 
+    if (looksLikeEmptyShortDictation && !finalText) {
+      logger.info(
+        "Suppressing finalization for likely empty short dictation",
+        { durationSeconds },
+        "streaming"
+      );
+    }
+
     if (finalText) {
       const tBeforePaste = performance.now();
       const clientTotalMs = Math.round(tBeforePaste - t0);
@@ -2697,11 +2782,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.onTranscriptionComplete?.({
         success: true,
         text: finalText,
-        rawText: finalText,
-        source: `${this.getStreamingProviderName()}-streaming`,
+        rawText: finalRawText,
+        source: finalSource,
       });
 
-      if (!usedBatchFallback) {
+      if (!usedBatchFallback && !usedFinalBatchPass) {
         (async () => {
           try {
             await withSessionRefresh(async () => {
