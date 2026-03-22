@@ -1267,7 +1267,7 @@ class ReasoningService extends BaseReasoningService {
 
   async *processTextStreamingCloud(
     messages: Array<{ role: string; content: string }>,
-    config: { systemPrompt: string }
+    config: { systemPrompt: string; sessionId?: string }
   ): AsyncGenerator<string, void, unknown> {
     const chunks: string[] = [];
     let done = false;
@@ -1283,8 +1283,23 @@ class ReasoningService extends BaseReasoningService {
     });
 
     try {
-      const result = await window.electronAPI?.cloudAgentStream?.(messages, {
-        systemPrompt: config.systemPrompt,
+      const result = await withSessionRefresh(async () => {
+        const response = await window.electronAPI?.cloudAgentStream?.(messages, {
+          systemPrompt: config.systemPrompt,
+          sessionId: config.sessionId,
+        });
+
+        if (response && !response.success) {
+          const error: Error & { code?: string } = new Error(
+            response.error || "Cloud agent streaming failed"
+          );
+          if (response.code) {
+            error.code = response.code;
+          }
+          throw error;
+        }
+
+        return response;
       });
 
       if (result && !result.success) {

@@ -1077,7 +1077,7 @@ declare global {
       // Agent cloud streaming
       cloudAgentStream?: (
         messages: Array<{ role: string; content: string }>,
-        opts?: { systemPrompt?: string }
+        opts?: { systemPrompt?: string; sessionId?: string }
       ) => Promise<{ success: boolean; error?: string; code?: string }>;
       onAgentStreamChunk?: (callback: (chunk: string) => void) => () => void;
       onAgentStreamDone?: (callback: () => void) => () => void;

@@ -28,6 +28,7 @@ export default function AgentOverlay() {
   const messagesRef = useRef<Message[]>([]);
   const agentStateRef = useRef<AgentState>("idle");
   const conversationIdRef = useRef<number | null>(null);
+  const cloudSessionIdRef = useRef<string>(crypto.randomUUID());
 
   useEffect(() => {
     messagesRef.current = messages;
@@ -98,7 +99,10 @@ export default function AgentOverlay() {
       let fullContent = "";
 
       const streamSource = isCloudAgent
-        ? ReasoningService.processTextStreamingCloud(llmMessages, { systemPrompt })
+        ? ReasoningService.processTextStreamingCloud(llmMessages, {
+            systemPrompt,
+            sessionId: cloudSessionIdRef.current,
+          })
         : ReasoningService.processTextStreaming(
             llmMessages,
             settings.agentModel,
@@ -249,6 +253,7 @@ export default function AgentOverlay() {
     setAgentState("idle");
     setPartialTranscript("");
     conversationIdRef.current = null;
+    cloudSessionIdRef.current = crypto.randomUUID();
   }, []);
 
   const handleClose = useCallback(() => {

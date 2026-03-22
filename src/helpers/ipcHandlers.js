@@ -2809,7 +2809,7 @@ class IPCHandlers {
           body: JSON.stringify({
             messages,
             systemPrompt: opts.systemPrompt,
-            sessionId: this.sessionId,
+            sessionId: opts.sessionId || crypto.randomUUID(),
             clientType: "desktop",
             appVersion: app.getVersion(),
           }),

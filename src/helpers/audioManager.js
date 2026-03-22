@@ -15,6 +15,7 @@ import {
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
+const SILENCE_THRESHOLD = 0.002;
 
 const PLACEHOLDER_KEYS = {
   openai: "your_openai_api_key_here",
@@ -114,6 +115,10 @@ class AudioManager {
     this.sttConfig = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+    this.streamingPeakRms = null;
+    this._streamingSilenceCtx = null;
+    this._streamingSilenceAnalyser = null;
+    this._streamingSilenceInterval = null;
 
     // System audio capture
     this.systemAudioEnabled = false;
@@ -246,6 +251,61 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this._mixingContext = null;
     }
     this._mixingDestination = null;
+  }
+
+  setupStreamingSilenceDetection(stream) {
+    try {
+      this.cleanupStreamingSilenceDetection();
+      this._streamingSilenceCtx = new AudioContext();
+      this._streamingSilenceAnalyser = this._streamingSilenceCtx.createAnalyser();
+      this._streamingSilenceAnalyser.fftSize = 2048;
+      const sourceNode = this._streamingSilenceCtx.createMediaStreamSource(stream);
+      sourceNode.connect(this._streamingSilenceAnalyser);
+      this.streamingPeakRms = 0;
+      const dataArray = new Uint8Array(this._streamingSilenceAnalyser.fftSize);
+      this._streamingSilenceInterval = setInterval(() => {
+        this._streamingSilenceAnalyser.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = (dataArray[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / dataArray.length);
+        if (rms > this.streamingPeakRms) this.streamingPeakRms = rms;
+      }, 100);
+    } catch (e) {
+      logger.warn(
+        "Streaming silence detection setup failed, skipping",
+        { error: e.message },
+        "streaming"
+      );
+      this.streamingPeakRms = 1;
+    }
+  }
+
+  cleanupStreamingSilenceDetection() {
+    if (this._streamingSilenceInterval) {
+      clearInterval(this._streamingSilenceInterval);
+      this._streamingSilenceInterval = null;
+    }
+    this._streamingSilenceCtx?.close().catch(() => {});
+    this._streamingSilenceCtx = null;
+    this._streamingSilenceAnalyser = null;
+  }
+
+  normalizeTranscriptText(text) {
+    return (text || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  isLikelyOpenWhisprHallucination(text, hadTranscriptActivity) {
+    const normalizedText = this.normalizeTranscriptText(text);
+    return (
+      !hadTranscriptActivity &&
+      ["openwhispr", "open whispr", "open whisper"].includes(normalizedText)
+    );
   }
 
   getStreamingProvider() {
@@ -524,7 +584,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const pipelineStart = performance.now();
 
     // Skip transcription if recording was silence
-    const SILENCE_THRESHOLD = 0.002;
     if (this._peakRms != null && this._peakRms < SILENCE_THRESHOLD) {
       logger.info(
         "Silence detected, skipping transcription",
@@ -2220,6 +2279,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const provider = this.getStreamingProvider();
       const streamingSampleRate = this.getStreamingSampleRate();
+      this.setupStreamingSilenceDetection(stream);
 
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack) {
@@ -2467,6 +2527,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const durationSeconds = this.recordingStartTime
       ? (Date.now() - this.recordingStartTime) / 1000
       : null;
+    const streamingPeakRms = this.streamingPeakRms;
+    this.cleanupStreamingSilenceDetection();
+    this.streamingPeakRms = null;
 
     const t0 = performance.now();
     let finalText = this.streamingFinalText || "";
@@ -2554,13 +2617,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
     }
 
-    const normalizedFinalText = (finalText || "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-    const looksLikeAccidentalOpenWhisprHallucination =
-      !this.streamingHadTranscriptActivity &&
-      ["openwhispr", "open whispr", "open whisper"].includes(normalizedFinalText);
+    const looksLikeAccidentalOpenWhisprHallucination = this.isLikelyOpenWhisprHallucination(
+      finalText,
+      this.streamingHadTranscriptActivity
+    );
 
     if (looksLikeAccidentalOpenWhisprHallucination) {
       logger.info(
@@ -2597,10 +2657,23 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const streamingSttWordCount = finalText ? finalText.split(/\s+/).filter(Boolean).length : 0;
     const hadAnyStreamingTranscriptActivity =
       this.streamingHadTranscriptActivity || !!this.streamingPartialText || !!this.streamingFinalText;
+    const looksLikeSilentStreamingDictation =
+      !hadAnyStreamingTranscriptActivity &&
+      streamingPeakRms != null &&
+      streamingPeakRms < SILENCE_THRESHOLD;
     const looksLikeEmptyShortDictation =
       !hadAnyStreamingTranscriptActivity &&
       typeof durationSeconds === "number" &&
       durationSeconds < 3;
+
+    if (looksLikeSilentStreamingDictation && finalText) {
+      logger.info(
+        "Suppressing transcript for likely silent streaming dictation",
+        { durationSeconds, peakRms: streamingPeakRms.toFixed(4), finalText },
+        "streaming"
+      );
+      finalText = "";
+    }
 
     const streamingProviderName = this.getStreamingProviderName();
     let finalSource = `${streamingProviderName}-streaming`;
@@ -2610,6 +2683,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     if (
       streamingProviderName === "openai-realtime" &&
       !looksLikeEmptyShortDictation &&
+      !looksLikeSilentStreamingDictation &&
       fallbackBlob?.size > 0 &&
       typeof durationSeconds === "number" &&
       durationSeconds > 0.5
@@ -2630,6 +2704,16 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           finalRawText = batchResult.rawText ?? batchResult.text;
           finalSource = batchResult.source || finalSource;
           usedFinalBatchPass = true;
+          if (this.isLikelyOpenWhisprHallucination(finalText, hadAnyStreamingTranscriptActivity)) {
+            logger.info(
+              "Suppressing likely hallucinated batch finalization transcript",
+              { durationSeconds, peakRms: streamingPeakRms?.toFixed?.(4), finalText },
+              "streaming"
+            );
+            finalText = "";
+            finalRawText = "";
+            usedFinalBatchPass = false;
+          }
           logger.info(
             "Batch finalization pass succeeded",
             { source: finalSource, textLength: finalText.length },
@@ -2722,6 +2806,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     let usedBatchFallback = false;
     if (
       !looksLikeEmptyShortDictation &&
+      !looksLikeSilentStreamingDictation &&
       !usedFinalBatchPass &&
       !finalText &&
       durationSeconds > 2 &&
@@ -2747,6 +2832,16 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           finalRawText = batchResult.rawText ?? batchResult.text;
           finalSource = batchResult.source || finalSource;
           usedBatchFallback = true;
+          if (this.isLikelyOpenWhisprHallucination(finalText, hadAnyStreamingTranscriptActivity)) {
+            logger.info(
+              "Suppressing likely hallucinated batch fallback transcript",
+              { durationSeconds, peakRms: streamingPeakRms?.toFixed?.(4), finalText },
+              "streaming"
+            );
+            finalText = "";
+            finalRawText = "";
+            usedBatchFallback = false;
+          }
           logger.info(
             "Batch fallback succeeded",
             {
@@ -2761,10 +2856,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
     }
 
-    if (looksLikeEmptyShortDictation && !finalText) {
+    if ((looksLikeEmptyShortDictation || looksLikeSilentStreamingDictation) && !finalText) {
       logger.info(
-        "Suppressing finalization for likely empty short dictation",
-        { durationSeconds },
+        "Suppressing finalization for likely empty streaming dictation",
+        { durationSeconds, peakRms: streamingPeakRms?.toFixed?.(4) },
         "streaming"
       );
     }
@@ -2953,6 +3048,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     this.cleanupSystemAudio();
+    this.cleanupStreamingSilenceDetection();
+    this.streamingPeakRms = null;
 
     this.isStreaming = false;
   }
@@ -2976,6 +3073,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   async cleanupStreaming() {
     this.cleanupStreamingAudio();
+    this.cleanupStreamingSilenceDetection();
+    this.streamingPeakRms = null;
     this.cleanupStreamingListeners();
   }
 
