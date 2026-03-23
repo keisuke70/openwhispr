@@ -211,9 +211,7 @@ class HotkeyManager {
       slot.accelerator = null;
       this.slots.set(slotName, slot);
 
-      debugLogger.log(
-        `[HotkeyManager] KDE slot "${slotName}" set to "${hotkey}"`
-      );
+      debugLogger.log(`[HotkeyManager] KDE slot "${slotName}" set to "${hotkey}"`);
       return { success: true, hotkey };
     }
 
@@ -483,7 +481,11 @@ class HotkeyManager {
   }
 
   async initializeKDEShortcuts(callback) {
-    if (process.platform !== "linux" || !KDEShortcutManager.isWayland() || !KDEShortcutManager.isKDE()) {
+    if (
+      process.platform !== "linux" ||
+      !KDEShortcutManager.isWayland() ||
+      !KDEShortcutManager.isKDE()
+    ) {
       return false;
     }
 
@@ -593,49 +595,7 @@ class HotkeyManager {
         return;
       }
 
-      // Try KDE native shortcuts via KGlobalAccel
-      const kdeOk = await this.initializeKDEShortcuts(callback);
-
-      if (kdeOk) {
-        const registerKDEHotkey = async () => {
-          try {
-            const savedHotkey = await mainWindow.webContents.executeJavaScript(`
-              localStorage.getItem("dictationKey") || ""
-            `);
-            const hotkey = savedHotkey && savedHotkey.trim() !== "" ? savedHotkey : "Control+Super";
-            const success = await this.kdeManager.registerKeybinding(hotkey, "dictation", callback);
-            if (success) {
-              this.currentHotkey = hotkey;
-              debugLogger.log(
-                `[HotkeyManager] KDE hotkey "${hotkey}" registered successfully`
-              );
-            } else {
-              debugLogger.log(
-                "[HotkeyManager] KDE keybinding failed, falling back to globalShortcut"
-              );
-              this.kdeManager.close();
-              this.kdeManager = null;
-              this.useKDE = false;
-              this.loadSavedHotkeyOrDefault(mainWindow, callback);
-            }
-          } catch (err) {
-            debugLogger.log(
-              "[HotkeyManager] KDE keybinding failed, falling back to globalShortcut:",
-              err.message
-            );
-            this.kdeManager?.close();
-            this.kdeManager = null;
-            this.useKDE = false;
-            this.loadSavedHotkeyOrDefault(mainWindow, callback);
-          }
-        };
-
-        setTimeout(registerKDEHotkey, HOTKEY_REGISTRATION_DELAY_MS);
-        this.isInitialized = true;
-        return;
-      }
-
-      // Try Hyprland native shortcuts if GNOME/KDE paths were not applicable
+      // Try Hyprland native shortcuts if GNOME path was not applicable
       const hyprlandOk = await this.initializeHyprlandShortcuts(callback);
 
       if (hyprlandOk) {
@@ -748,6 +708,28 @@ class HotkeyManager {
         }
       }
 
+      // KDE D-Bus fallback — only reached when globalShortcut failed on XWayland
+      const kdeOk = await this.initializeKDEShortcuts(callback);
+      if (kdeOk) {
+        const savedHotkey = process.env.DICTATION_KEY || defaultHotkey;
+        const success = await this.kdeManager.registerKeybinding(
+          savedHotkey,
+          "dictation",
+          callback
+        );
+        if (success) {
+          this.currentHotkey = savedHotkey;
+          debugLogger.log(
+            `[HotkeyManager] KDE D-Bus fallback hotkey "${savedHotkey}" registered successfully`
+          );
+          return;
+        }
+        debugLogger.log("[HotkeyManager] KDE D-Bus fallback registration also failed");
+        this.kdeManager.close();
+        this.kdeManager = null;
+        this.useKDE = false;
+      }
+
       debugLogger.log("[HotkeyManager] All hotkey fallbacks failed");
       this.notifyHotkeyFailure(defaultHotkey, result);
     } catch (err) {
@@ -858,6 +840,28 @@ class HotkeyManager {
         return {
           success: true,
           message: `Hotkey updated to: ${hotkey} (via Hyprland native shortcut)`,
+        };
+      }
+
+      if (this.useKDE && this.kdeManager) {
+        debugLogger.log(`[HotkeyManager] Updating KDE hotkey to "${hotkey}"`);
+        const success = await this.kdeManager.registerKeybinding(hotkey, "dictation", callback);
+        if (!success) {
+          return {
+            success: false,
+            message: `Failed to update KDE hotkey to "${hotkey}". Check the format is valid.`,
+          };
+        }
+        this.currentHotkey = hotkey;
+        const saved = await this.saveHotkeyToRenderer(hotkey);
+        if (!saved) {
+          debugLogger.warn(
+            "[HotkeyManager] KDE hotkey registered but failed to persist to localStorage"
+          );
+        }
+        return {
+          success: true,
+          message: `Hotkey updated to: ${hotkey} (via KDE D-Bus shortcut)`,
         };
       }
 
