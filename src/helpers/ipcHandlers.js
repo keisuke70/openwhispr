@@ -2051,13 +2051,23 @@ class IPCHandlers {
       return { granted };
     });
 
+    ipcMain.handle("check-microphone-access", () => {
+      if (process.platform !== "darwin") {
+        return { granted: true, status: "granted" };
+      }
+      const { systemPreferences } = require("electron");
+      const status = systemPreferences.getMediaAccessStatus("microphone");
+      return { granted: status === "granted", status };
+    });
+
     ipcMain.handle("check-system-audio-access", () => {
       if (process.platform !== "darwin") {
         return { granted: true, status: "granted", mode: "unsupported" };
       }
 
       if (this.audioTapManager?.isSupported()) {
-        const status = this.audioTapManager.getPermissionStatus();
+        const { systemPreferences } = require("electron");
+        const status = systemPreferences.getMediaAccessStatus("screen");
         return { granted: status === "granted", status, mode: "native" };
       }
 
@@ -2073,13 +2083,17 @@ class IPCHandlers {
         return { granted: false, status: "unsupported", mode: "unsupported" };
       }
 
-      try {
-        const result = await this.audioTapManager.requestAccess();
-        return { ...result, mode: "native" };
-      } catch (error) {
-        debugLogger.error("System audio permission request failed", { error: error.message });
-        return { granted: false, status: "unknown", mode: "native", error: error.message };
+      const { systemPreferences } = require("electron");
+      const status = systemPreferences.getMediaAccessStatus("screen");
+      if (status === "granted") {
+        return { granted: true, status: "granted", mode: "native" };
       }
+
+      // Permission not yet granted — open System Settings so the user can toggle it manually.
+      // Unlike microphone, macOS does not show a system prompt for screen/audio recording;
+      // the user must enable it in System Settings.
+      await openSystemSettings("systemAudio");
+      return { granted: false, status, mode: "native" };
     });
 
     // Auth: clear all session cookies for sign-out.

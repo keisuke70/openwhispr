@@ -117,7 +117,7 @@ export interface AudioDiagnosticsResult {
 
 export interface SystemAudioAccessResult {
   granted: boolean;
-  status: "granted" | "denied" | "unknown" | "unsupported";
+  status: "granted" | "denied" | "not-determined" | "restricted" | "unknown" | "unsupported";
   mode: "native" | "unsupported";
   error?: string;
 }
@@ -739,6 +739,7 @@ declare global {
 
       // System settings helpers
       requestMicrophoneAccess?: () => Promise<{ granted: boolean }>;
+      checkMicrophoneAccess?: () => Promise<{ granted: boolean; status: string }>;
       checkSystemAudioAccess?: () => Promise<SystemAudioAccessResult>;
       requestSystemAudioAccess?: () => Promise<SystemAudioAccessResult>;
       openMicrophoneSettings?: () => Promise<{ success: boolean; error?: string }>;

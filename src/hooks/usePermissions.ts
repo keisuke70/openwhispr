@@ -258,6 +258,15 @@ export const usePermissions = (
     checkPasteToolsAvailability();
   }, [checkPasteToolsAvailability]);
 
+  // On macOS, re-validate microphone permission on mount to override stale
+  // localStorage values (e.g. after TCC reset or app update).
+  useEffect(() => {
+    if (getPlatform() !== "darwin") return;
+    window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
+      if (result) setMicPermissionGranted(result.granted);
+    });
+  }, [setMicPermissionGranted]);
+
   // On macOS, re-validate accessibility permission on mount to override stale
   // localStorage values (e.g. after app update changes the code signature).
   useEffect(() => {
