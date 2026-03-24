@@ -1475,7 +1475,25 @@
     "learnMore": "En savoir plus",
     "integrations": "Intégrations",
     "defaultUser": "Utilisateur",
-    "notSignedIn": "Non connecté"
+    "notSignedIn": "Non connecté",
+    "chat": "Chat"
+  },
+  "chat": {
+    "newChat": "Nouveau chat",
+    "search": "Rechercher des conversations...",
+    "archived": "Archivées",
+    "noConversations": "Démarrez votre première conversation",
+    "selectChat": "Sélectionnez une conversation ou démarrez-en une nouvelle",
+    "noResults": "Aucune conversation correspondante",
+    "today": "Aujourd'hui",
+    "yesterday": "Hier",
+    "previousWeek": "7 derniers jours",
+    "older": "Plus anciennes",
+    "archive": "Archiver",
+    "unarchive": "Désarchiver",
+    "delete": "Supprimer",
+    "deleteConfirm": "Cette conversation sera définitivement supprimée. Cette action est irréversible.",
+    "editTitle": "Double-cliquez pour modifier le titre"
   },
   "referral": {
     "title": "Parrainez et gagnez des récompenses",

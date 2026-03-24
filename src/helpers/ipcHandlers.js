@@ -751,6 +751,37 @@ class IPCHandlers {
       return this.databaseManager.getAgentMessages(conversationId);
     });
 
+    ipcMain.handle(
+      "db-get-agent-conversations-with-preview",
+      async (event, limit, offset, includeArchived) => {
+        return this.databaseManager.getAgentConversationsWithPreview(
+          limit,
+          offset,
+          includeArchived
+        );
+      }
+    );
+
+    ipcMain.handle("db-search-agent-conversations", async (event, query, limit) => {
+      return this.databaseManager.searchAgentConversations(query, limit);
+    });
+
+    ipcMain.handle("db-archive-agent-conversation", async (event, id) => {
+      return this.databaseManager.archiveAgentConversation(id);
+    });
+
+    ipcMain.handle("db-unarchive-agent-conversation", async (event, id) => {
+      return this.databaseManager.unarchiveAgentConversation(id);
+    });
+
+    ipcMain.handle("db-update-agent-conversation-cloud-id", async (event, id, cloudId) => {
+      return this.databaseManager.updateAgentConversationCloudId(id, cloudId);
+    });
+
+    ipcMain.handle("db-semantic-search-conversations", async (event, query, limit) => {
+      return this.databaseManager.searchAgentConversations(query, limit);
+    });
+
     ipcMain.handle("export-note", async (event, noteId, format) => {
       try {
         const note = this.databaseManager.getNote(noteId);

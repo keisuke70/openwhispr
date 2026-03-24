@@ -612,6 +612,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   addAgentMessage: (conversationId, role, content, metadata) =>
     ipcRenderer.invoke("db-add-agent-message", conversationId, role, content, metadata),
   getAgentMessages: (conversationId) => ipcRenderer.invoke("db-get-agent-messages", conversationId),
+  getAgentConversationsWithPreview: (limit, offset, includeArchived) =>
+    ipcRenderer.invoke("db-get-agent-conversations-with-preview", limit, offset, includeArchived),
+  searchAgentConversations: (query, limit) =>
+    ipcRenderer.invoke("db-search-agent-conversations", query, limit),
+  archiveAgentConversation: (id) => ipcRenderer.invoke("db-archive-agent-conversation", id),
+  unarchiveAgentConversation: (id) => ipcRenderer.invoke("db-unarchive-agent-conversation", id),
+  updateAgentConversationCloudId: (id, cloudId) =>
+    ipcRenderer.invoke("db-update-agent-conversation-cloud-id", id, cloudId),
+  semanticSearchConversations: (query, limit) =>
+    ipcRenderer.invoke("db-semantic-search-conversations", query, limit),
 
   // Google Calendar
   gcalStartOAuth: () => ipcRenderer.invoke("gcal-start-oauth"),

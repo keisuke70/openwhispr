@@ -1523,7 +1523,25 @@
     "learnMore": "Learn more",
     "integrations": "Integrations",
     "defaultUser": "User",
-    "notSignedIn": "Not signed in"
+    "notSignedIn": "Not signed in",
+    "chat": "Chat"
+  },
+  "chat": {
+    "newChat": "New chat",
+    "search": "Search conversations...",
+    "archived": "Archived",
+    "noConversations": "Start your first conversation",
+    "selectChat": "Select a conversation or start a new one",
+    "noResults": "No matching conversations",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "previousWeek": "Previous 7 Days",
+    "older": "Older",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "delete": "Delete",
+    "deleteConfirm": "This conversation will be permanently deleted. This cannot be undone.",
+    "editTitle": "Double-click to edit title"
   },
   "referral": {
     "title": "Refer and earn rewards",

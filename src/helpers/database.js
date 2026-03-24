@@ -235,6 +235,16 @@ class DatabaseManager {
       } catch (err) {
         if (!err.message.includes("duplicate column")) throw err;
       }
+      try {
+        this.db.exec("ALTER TABLE agent_conversations ADD COLUMN archived_at DATETIME");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
+      try {
+        this.db.exec("ALTER TABLE agent_conversations ADD COLUMN cloud_id TEXT");
+      } catch (err) {
+        if (!err.message.includes("duplicate column")) throw err;
+      }
 
       const actionCount = this.db.prepare("SELECT COUNT(*) as count FROM actions").get();
       if (actionCount.count === 0) {
@@ -1269,6 +1279,106 @@ class DatabaseManager {
       }
     } catch (error) {
       debugLogger.error("Error deleting database file", { error: error.message }, "database");
+    }
+  }
+  getAgentConversationsWithPreview(limit = 50, offset = 0, includeArchived = false) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const archiveFilter = includeArchived ? "" : "WHERE c.archived_at IS NULL";
+      return this.db
+        .prepare(
+          `SELECT c.id, c.title, c.created_at, c.updated_at, c.archived_at, c.cloud_id,
+            COUNT(m.id) AS message_count,
+            (SELECT content FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT role FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_role
+          FROM agent_conversations c
+          LEFT JOIN agent_messages m ON m.conversation_id = c.id
+          ${archiveFilter}
+          GROUP BY c.id
+          ORDER BY c.updated_at DESC
+          LIMIT ? OFFSET ?`
+        )
+        .all(limit, offset);
+    } catch (error) {
+      debugLogger.error(
+        "Error getting agent conversations with preview",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  searchAgentConversations(query, limit = 20) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const pattern = `%${query}%`;
+      return this.db
+        .prepare(
+          `SELECT DISTINCT c.id, c.title, c.created_at, c.updated_at, c.archived_at, c.cloud_id,
+            COUNT(m.id) AS message_count,
+            (SELECT content FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
+            (SELECT role FROM agent_messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message_role
+          FROM agent_conversations c
+          LEFT JOIN agent_messages m ON m.conversation_id = c.id
+          LEFT JOIN agent_messages ms ON ms.conversation_id = c.id
+          WHERE c.archived_at IS NULL
+            AND (c.title LIKE ? OR ms.content LIKE ?)
+          GROUP BY c.id
+          ORDER BY c.updated_at DESC
+          LIMIT ?`
+        )
+        .all(pattern, pattern, limit);
+    } catch (error) {
+      debugLogger.error(
+        "Error searching agent conversations",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  archiveAgentConversation(id) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db
+        .prepare("UPDATE agent_conversations SET archived_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error archiving agent conversation", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  unarchiveAgentConversation(id) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db.prepare("UPDATE agent_conversations SET archived_at = NULL WHERE id = ?").run(id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error(
+        "Error unarchiving agent conversation",
+        { error: error.message },
+        "database"
+      );
+      throw error;
+    }
+  }
+
+  updateAgentConversationCloudId(id, cloudId) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      this.db.prepare("UPDATE agent_conversations SET cloud_id = ? WHERE id = ?").run(cloudId, id);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error(
+        "Error updating agent conversation cloud_id",
+        { error: error.message },
+        "database"
+      );
+      throw error;
     }
   }
 }

@@ -1,0 +1,323 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Plus, Search, Archive as ArchiveIcon } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { cn } from "../lib/utils";
+import { useDebouncedCallback } from "../../hooks/useDebouncedCallback";
+import { normalizeDbDate } from "../../utils/dateFormatting";
+import ConversationItem, { type ConversationPreview } from "./ConversationItem";
+import ConversationDateGroup from "./ConversationDateGroup";
+import EmptyConversationList from "./EmptyConversationList";
+
+type FlatItem =
+  | { type: "header"; label: string }
+  | { type: "conversation"; data: ConversationPreview };
+
+interface ConversationListProps {
+  activeConversationId: number | null;
+  onSelectConversation: (id: number, title: string) => void;
+  onNewChat: () => void;
+  onArchive: (id: number) => void;
+  onDelete: (id: number) => void;
+  refreshKey: number;
+}
+
+function groupByDate(conversations: ConversationPreview[], t: (key: string) => string): FlatItem[] {
+  if (conversations.length === 0) return [];
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const weekAgo = new Date(today);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const items: FlatItem[] = [];
+  let currentGroup: string | null = null;
+
+  for (const conv of conversations) {
+    const date = normalizeDbDate(conv.updated_at);
+    const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    let group: string;
+    if (target.getTime() >= today.getTime()) {
+      group = t("chat.today");
+    } else if (target.getTime() >= yesterday.getTime()) {
+      group = t("chat.yesterday");
+    } else if (target.getTime() >= weekAgo.getTime()) {
+      group = t("chat.previousWeek");
+    } else {
+      group = t("chat.older");
+    }
+
+    if (group !== currentGroup) {
+      items.push({ type: "header", label: group });
+      currentGroup = group;
+    }
+    items.push({ type: "conversation", data: conv });
+  }
+
+  return items;
+}
+
+function SkeletonRows() {
+  return (
+    <div className="px-3 pt-4 space-y-3">
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="space-y-1.5">
+          <div
+            className="h-3 rounded bg-foreground/5"
+            style={{
+              width: `${60 + i * 10}%`,
+              animation: `tool-status-sweep 1.5s ease-in-out ${i * 0.15}s infinite`,
+              backgroundSize: "200% 100%",
+              background: "linear-gradient(90deg, transparent, oklch(0.5 0 0 / 0.06), transparent)",
+            }}
+          />
+          <div
+            className="h-2.5 rounded bg-foreground/3"
+            style={{
+              width: `${80 + (i % 2) * 10}%`,
+              animation: `tool-status-sweep 1.5s ease-in-out ${i * 0.15 + 0.08}s infinite`,
+              backgroundSize: "200% 100%",
+              background: "linear-gradient(90deg, transparent, oklch(0.5 0 0 / 0.04), transparent)",
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function ConversationList({
+  activeConversationId,
+  onSelectConversation,
+  onNewChat,
+  onArchive,
+  onDelete,
+  refreshKey,
+}: ConversationListProps) {
+  const { t } = useTranslation();
+  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const showSkeletonTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const result = await window.electronAPI.getAgentConversations?.(200);
+      if (result) {
+        setConversations(
+          result.map((c) => ({
+            ...c,
+            preview: undefined,
+            is_archived: false,
+          }))
+        );
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsLoading(false);
+      setShowSkeleton(false);
+      if (showSkeletonTimer.current) {
+        clearTimeout(showSkeletonTimer.current);
+        showSkeletonTimer.current = null;
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    setIsLoading(true);
+    showSkeletonTimer.current = setTimeout(() => setShowSkeleton(true), 150);
+    loadConversations();
+    return () => {
+      if (showSkeletonTimer.current) clearTimeout(showSkeletonTimer.current);
+    };
+  }, [loadConversations, refreshKey]);
+
+  const filtered = useMemo(() => {
+    let list = conversations;
+    if (!showArchived) {
+      list = list.filter((c) => !c.is_archived);
+    } else {
+      list = list.filter((c) => c.is_archived);
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((c) => c.title.toLowerCase().includes(q));
+    }
+    return list;
+  }, [conversations, searchQuery, showArchived]);
+
+  const flatItems = useMemo(() => groupByDate(filtered, t), [filtered, t]);
+
+  const debouncedSearch = useDebouncedCallback((value: string) => {
+    setSearchQuery(value);
+  }, 200);
+
+  const virtualizer = useVirtualizer({
+    count: flatItems.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (index) => (flatItems[index].type === "header" ? 28 : 52),
+    overscan: 5,
+  });
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (flatItems.length === 0) return;
+
+      const convItems = flatItems
+        .map((item, index) => ({ item, index }))
+        .filter((entry) => entry.item.type === "conversation");
+      if (convItems.length === 0) return;
+
+      const currentIdx = convItems.findIndex(
+        (entry) => entry.item.type === "conversation" && entry.item.data.id === activeConversationId
+      );
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const next = currentIdx < convItems.length - 1 ? currentIdx + 1 : 0;
+        const item = convItems[next].item;
+        if (item.type === "conversation") onSelectConversation(item.data.id, item.data.title);
+        virtualizer.scrollToIndex(convItems[next].index);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prev = currentIdx > 0 ? currentIdx - 1 : convItems.length - 1;
+        const item = convItems[prev].item;
+        if (item.type === "conversation") onSelectConversation(item.data.id, item.data.title);
+        virtualizer.scrollToIndex(convItems[prev].index);
+      } else if (e.key === "Enter" && activeConversationId) {
+        e.preventDefault();
+      }
+    },
+    [flatItems, activeConversationId, onSelectConversation, virtualizer]
+  );
+
+  if (isLoading && showSkeleton) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="px-2 pt-2 pb-1 flex items-center gap-1.5">
+          <h2 className="text-xs font-medium text-foreground px-1 flex-1">{t("sidebar.chat")}</h2>
+        </div>
+        <SkeletonRows />
+      </div>
+    );
+  }
+
+  if (isLoading && !showSkeleton) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="px-2 pt-2 pb-1 flex items-center gap-1.5">
+          <h2 className="text-xs font-medium text-foreground px-1 flex-1">{t("sidebar.chat")}</h2>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full" onKeyDown={handleKeyDown} tabIndex={-1}>
+      <div className="px-2 pt-2 pb-1 space-y-1.5 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-xs font-medium text-foreground px-1 flex-1">{t("sidebar.chat")}</h2>
+          <button
+            onClick={() => setShowArchived((v) => !v)}
+            className={cn(
+              "flex items-center gap-1 h-5 px-1.5 rounded-md text-[10px] transition-colors duration-150",
+              "focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
+              showArchived
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-foreground/4"
+            )}
+          >
+            <ArchiveIcon size={10} />
+            {t("chat.archived")}
+          </button>
+          <button
+            onClick={onNewChat}
+            className={cn(
+              "p-1 rounded-sm",
+              "text-muted-foreground/60 hover:text-foreground hover:bg-foreground/8",
+              "transition-colors duration-150",
+              "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
+            )}
+            aria-label={t("chat.newChat")}
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+        <div className="relative">
+          <Search
+            size={11}
+            className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground/40 pointer-events-none"
+          />
+          <input
+            type="text"
+            onChange={(e) => debouncedSearch(e.target.value)}
+            placeholder={t("chat.search")}
+            className={cn(
+              "w-full h-6 pl-6 pr-2 rounded-md text-[11px]",
+              "bg-foreground/3 dark:bg-white/3 border border-border/25 dark:border-white/8",
+              "text-foreground placeholder:text-muted-foreground/40",
+              "outline-none focus-visible:ring-1 focus-visible:ring-primary/30",
+              "transition-colors"
+            )}
+          />
+        </div>
+      </div>
+
+      {flatItems.length === 0 ? (
+        searchQuery.trim() ? (
+          <div className="flex items-center justify-center flex-1">
+            <p className="text-xs text-muted-foreground/40">{t("chat.noResults")}</p>
+          </div>
+        ) : (
+          <EmptyConversationList onNewChat={onNewChat} />
+        )
+      ) : (
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {virtualizer.getVirtualItems().map((virtualItem) => {
+              const item = flatItems[virtualItem.index];
+              return (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {item.type === "header" ? (
+                    <ConversationDateGroup label={item.label} />
+                  ) : (
+                    <ConversationItem
+                      conversation={item.data}
+                      isActive={item.data.id === activeConversationId}
+                      onClick={() => onSelectConversation(item.data.id, item.data.title)}
+                      onArchive={onArchive}
+                      onDelete={onDelete}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1735,7 +1735,25 @@
     "learnMore": "詳しく見る",
     "integrations": "連携",
     "defaultUser": "ユーザー",
-    "notSignedIn": "未サインイン"
+    "notSignedIn": "未サインイン",
+    "chat": "チャット"
+  },
+  "chat": {
+    "newChat": "新しいチャット",
+    "search": "会話を検索...",
+    "archived": "アーカイブ済み",
+    "noConversations": "最初の会話を始めましょう",
+    "selectChat": "会話を選択するか、新しく始めてください",
+    "noResults": "該当する会話がありません",
+    "today": "今日",
+    "yesterday": "昨日",
+    "previousWeek": "過去7日間",
+    "older": "それ以前",
+    "archive": "アーカイブ",
+    "unarchive": "アーカイブ解除",
+    "delete": "削除",
+    "deleteConfirm": "この会話は完全に削除されます。元に戻すことはできません。",
+    "editTitle": "ダブルクリックでタイトルを編集"
   },
   "usage": {
     "approachingLimit": "週間制限に近づいています",

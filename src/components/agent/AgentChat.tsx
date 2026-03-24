@@ -1,27 +1,11 @@
-import { useRef, useEffect } from "react";
 import { Mic } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "../lib/utils";
-import { AgentMessage } from "./AgentMessage";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { formatHotkeyLabel } from "../../utils/hotkeys";
+import { ChatMessages } from "../chat/ChatMessages";
+import type { Message } from "../chat/types";
 
-export interface ToolCallInfo {
-  id: string;
-  name: string;
-  arguments: string;
-  status: "executing" | "completed" | "error";
-  result?: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface Message {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  isStreaming: boolean;
-  toolCalls?: ToolCallInfo[];
-}
+export type { Message, ToolCallInfo } from "../chat/types";
 
 interface AgentChatProps {
   messages: Message[];
@@ -29,20 +13,13 @@ interface AgentChatProps {
 
 export function AgentChat({ messages }: AgentChatProps) {
   const { t } = useTranslation();
-  const scrollRef = useRef<HTMLDivElement>(null);
   const agentKey = useSettingsStore((s) => s.agentKey);
   const hotkeyLabel = formatHotkeyLabel(agentKey);
 
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (el) {
-      el.scrollTop = el.scrollHeight;
-    }
-  }, [messages]);
-
   return (
-    <div ref={scrollRef} className={cn("flex-1 overflow-y-auto agent-chat-scroll", "px-3 py-2")}>
-      {messages.length === 0 ? (
+    <ChatMessages
+      messages={messages}
+      emptyState={
         <div className="flex flex-col items-center justify-center h-full gap-2 select-none">
           <div
             className="text-muted-foreground/30"
@@ -59,21 +36,7 @@ export function AgentChat({ messages }: AgentChatProps) {
             </p>
           </div>
         </div>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {messages
-            .filter((msg) => msg.role !== "tool")
-            .map((msg) => (
-              <AgentMessage
-                key={msg.id}
-                role={msg.role as "user" | "assistant"}
-                content={msg.content}
-                isStreaming={msg.isStreaming}
-                toolCalls={msg.toolCalls}
-              />
-            ))}
-        </div>
-      )}
-    </div>
+      }
+    />
   );
 }

@@ -2,76 +2,55 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "./lib/utils";
 import { AgentTitleBar } from "./agent/AgentTitleBar";
-import { AgentChat, type Message } from "./agent/AgentChat";
+import { AgentChat } from "./agent/AgentChat";
 import { AgentInput } from "./agent/AgentInput";
 import AudioManager from "../helpers/audioManager";
-import ReasoningService, { type AgentStreamChunk } from "../services/ReasoningService";
-import { getSettings } from "../stores/settingsStore";
-import { getAgentSystemPrompt } from "../config/prompts";
-import { createToolRegistry } from "../services/tools";
-import type { ToolRegistry } from "../services/tools/ToolRegistry";
-
-type AgentState =
-  | "idle"
-  | "listening"
-  | "transcribing"
-  | "thinking"
-  | "streaming"
-  | "tool-executing";
+import { useChatPersistence } from "./chat/useChatPersistence";
+import { useChatStreaming } from "./chat/useChatStreaming";
+import type { Message } from "./chat/types";
 
 const MIN_HEIGHT = 200;
 const MIN_WIDTH = 360;
 
 export default function AgentOverlay() {
   const { t } = useTranslation();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [agentState, setAgentState] = useState<AgentState>("idle");
   const [partialTranscript, setPartialTranscript] = useState("");
-  const [toolStatus, setToolStatus] = useState("");
-  const [activeToolName, setActiveToolName] = useState("");
   const audioManagerRef = useRef<InstanceType<typeof AudioManager> | null>(null);
-  const messagesRef = useRef<Message[]>([]);
-  const agentStateRef = useRef<AgentState>("idle");
-  const conversationIdRef = useRef<number | null>(null);
-  const mountedRef = useRef(true);
-  const toolRegistryRef = useRef<{ key: string; registry: ToolRegistry } | null>(null);
+  const agentStateRef = useRef<string>("idle");
 
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
+  const persistence = useChatPersistence();
+  const { messages, setMessages, handleNewChat: persistenceNewChat } = persistence;
+
+  const streaming = useChatStreaming({
+    messages,
+    setMessages,
+    onStreamComplete: (_assistantId, content, toolCalls) => {
+      persistence.saveAssistantMessage(content, toolCalls);
+    },
+  });
+
+  const { agentState, toolStatus, activeToolName } = streaming;
 
   useEffect(() => {
     agentStateRef.current = agentState;
   }, [agentState]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      ReasoningService.cancelActiveStream();
-    };
-  }, []);
-
-  const addSystemMessage = useCallback((content: string) => {
-    setMessages((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), role: "assistant" as const, content, isStreaming: false },
-    ]);
-  }, []);
+  const addSystemMessage = useCallback(
+    (content: string) => {
+      setMessages((prev) => [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant" as const, content, isStreaming: false },
+      ]);
+    },
+    [setMessages]
+  );
 
   const handleTranscriptionComplete = useCallback(
     async (text: string) => {
-      if (!text.trim()) {
-        setAgentState("idle");
-        return;
-      }
+      if (!text.trim()) return;
 
-      // Create conversation on first message
-      if (!conversationIdRef.current) {
-        const conv = await window.electronAPI?.createAgentConversation?.(
-          t("agentMode.titleBar.newChat")
-        );
-        conversationIdRef.current = conv?.id ?? null;
+      if (!persistence.conversationId) {
+        await persistence.createConversation(t("agentMode.titleBar.newChat"));
       }
 
       const userMsg: Message = {
@@ -82,202 +61,16 @@ export default function AgentOverlay() {
       };
       setMessages((prev) => [...prev, userMsg]);
 
-      if (conversationIdRef.current) {
-        window.electronAPI?.addAgentMessage?.(conversationIdRef.current, "user", text);
-      }
+      await persistence.saveUserMessage(text);
 
-      // Auto-title after first user message
-      const allMessages = messagesRef.current;
-      if (conversationIdRef.current && allMessages.length === 0) {
+      if (persistence.conversationId && messages.length === 0) {
         const title = text.slice(0, 50) + (text.length > 50 ? "..." : "");
-        window.electronAPI?.updateAgentConversationTitle?.(conversationIdRef.current, title);
+        window.electronAPI?.updateAgentConversationTitle?.(persistence.conversationId, title);
       }
 
-      setAgentState("thinking");
-
-      const settings = getSettings();
-
-      const isCloudAgent = settings.isSignedIn && settings.cloudAgentMode === "openwhispr";
-      const toolSupportedProviders = ["openai", "groq", "custom", "anthropic", "gemini"];
-      const supportsTools = isCloudAgent || toolSupportedProviders.includes(settings.agentProvider);
-
-      let registry: ToolRegistry | null = null;
-      if (supportsTools) {
-        const cacheKey = `${settings.isSignedIn}-${settings.gcalConnected}-${settings.cloudBackupEnabled}`;
-        if (toolRegistryRef.current?.key === cacheKey) {
-          registry = toolRegistryRef.current.registry;
-        } else {
-          registry = createToolRegistry({
-            isSignedIn: settings.isSignedIn,
-            gcalConnected: settings.gcalConnected,
-            cloudBackupEnabled: settings.cloudBackupEnabled,
-          });
-          toolRegistryRef.current = { key: cacheKey, registry };
-        }
-      }
-      const systemPrompt = getAgentSystemPrompt(registry?.getAll().map((t) => t.name));
-
-      const llmMessages = [
-        { role: "system", content: systemPrompt },
-        ...[...allMessages, userMsg].slice(-20).map((m) => ({ role: m.role, content: m.content })),
-      ];
-
-      const assistantId = crypto.randomUUID();
-      setMessages((prev) => [
-        ...prev,
-        { id: assistantId, role: "assistant", content: "", isStreaming: true },
-      ]);
-      setAgentState("streaming");
-
-      try {
-        let fullContent = "";
-        let stream: AsyncGenerator<AgentStreamChunk>;
-
-        if (isCloudAgent) {
-          const executeToolCall = registry
-            ? async (name: string, argsJson: string) => {
-                const tool = registry.get(name);
-                if (!tool)
-                  return {
-                    data: `Unknown tool: ${name}`,
-                    displayText: t("agentMode.tools.unknownTool", { name }),
-                  };
-                let args: Record<string, unknown>;
-                try {
-                  args = JSON.parse(argsJson);
-                } catch {
-                  return {
-                    data: `Invalid tool arguments for ${name}`,
-                    displayText: t("agentMode.tools.invalidArgs", { name }),
-                  };
-                }
-                const result = await tool.execute(args);
-                const data = result.success
-                  ? typeof result.data === "string"
-                    ? result.data
-                    : JSON.stringify(result.data)
-                  : result.displayText;
-                const metadata =
-                  result.success && result.data && typeof result.data === "object"
-                    ? (result.data as Record<string, unknown>)
-                    : undefined;
-                return { data, displayText: result.displayText, metadata };
-              }
-            : undefined;
-
-          stream = ReasoningService.processTextStreamingCloud(llmMessages, {
-            systemPrompt,
-            tools: registry?.getAll().map((t) => ({
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters,
-            })),
-            executeToolCall,
-          });
-        } else {
-          const aiTools = registry?.toAISDKFormat();
-          stream = ReasoningService.processTextStreamingAI(
-            llmMessages,
-            settings.agentModel,
-            settings.agentProvider,
-            { systemPrompt },
-            aiTools
-          );
-        }
-
-        for await (const chunk of stream) {
-          if (!mountedRef.current) {
-            ReasoningService.cancelActiveStream();
-            break;
-          }
-          if (chunk.type === "content") {
-            fullContent += chunk.text;
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: fullContent } : m))
-            );
-          } else if (chunk.type === "tool_calls") {
-            for (const call of chunk.calls) {
-              setAgentState("tool-executing");
-              setActiveToolName(call.name);
-              setToolStatus(
-                t(`agentMode.tools.${call.name}Status`, { defaultValue: `Using ${call.name}...` })
-              );
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        toolCalls: [
-                          ...(m.toolCalls || []),
-                          {
-                            id: call.id,
-                            name: call.name,
-                            arguments: call.arguments,
-                            status: "executing" as const,
-                          },
-                        ],
-                      }
-                    : m
-                )
-              );
-            }
-          } else if (chunk.type === "tool_result") {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId && m.toolCalls
-                  ? {
-                      ...m,
-                      toolCalls: m.toolCalls.map((tc) =>
-                        tc.id === chunk.callId
-                          ? {
-                              ...tc,
-                              status: "completed" as const,
-                              result: chunk.displayText,
-                              ...(chunk.metadata ? { metadata: chunk.metadata } : {}),
-                            }
-                          : tc
-                      ),
-                    }
-                  : m
-              )
-            );
-            setAgentState("streaming");
-            setToolStatus("");
-            setActiveToolName("");
-          }
-        }
-
-        setMessages((prev) =>
-          prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m))
-        );
-
-        if (conversationIdRef.current) {
-          const finalMsg = messagesRef.current.find((m) => m.id === assistantId);
-          const toolCalls = finalMsg?.toolCalls;
-          window.electronAPI?.addAgentMessage?.(
-            conversationIdRef.current,
-            "assistant",
-            fullContent,
-            toolCalls?.length ? { toolCalls } : undefined
-          );
-        }
-      } catch (error) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: `${t("agentMode.chat.errorPrefix")}: ${(error as Error).message}`,
-                  isStreaming: false,
-                }
-              : m
-          )
-        );
-      }
-
-      setAgentState("idle");
+      await streaming.sendToAI(text, [...messages, userMsg]);
     },
-    [t]
+    [t, messages, setMessages, persistence, streaming]
   );
 
   useEffect(() => {
@@ -285,20 +78,10 @@ export default function AgentOverlay() {
     am.setSkipReasoning(true);
     am.setContext("agent");
     am.setCallbacks({
-      onStateChange: ({
-        isRecording,
-        isProcessing,
-      }: {
-        isRecording: boolean;
-        isProcessing: boolean;
-      }) => {
-        if (isRecording) setAgentState("listening");
-        else if (isProcessing) setAgentState("transcribing");
-      },
+      onStateChange: () => {},
       onError: (error: { message?: string }) => {
         const msg = error?.message || (typeof error === "string" ? error : "Transcription failed");
         addSystemMessage(`${t("agentMode.chat.errorPrefix")}: ${msg}`);
-        setAgentState("idle");
       },
       onTranscriptionComplete: (result: { text: string }) => {
         handleTranscriptionComplete(result.text);
@@ -313,6 +96,7 @@ export default function AgentOverlay() {
       am.cleanup?.();
       window.removeEventListener("api-key-changed", (am as any)._onApiKeyChanged);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addSystemMessage, handleTranscriptionComplete]);
 
   const handleResizeStart = useCallback((e: React.MouseEvent, direction: string) => {
@@ -400,14 +184,10 @@ export default function AgentOverlay() {
   );
 
   const handleNewChat = useCallback(() => {
-    setMessages([]);
-    setAgentState("idle");
+    persistenceNewChat();
     setPartialTranscript("");
-    setToolStatus("");
-    setActiveToolName("");
-    conversationIdRef.current = null;
-    toolRegistryRef.current = null;
-  }, []);
+    streaming.cancelStream();
+  }, [persistenceNewChat, streaming]);
 
   const handleClose = useCallback(() => {
     window.electronAPI?.hideAgentOverlay?.();
@@ -435,7 +215,7 @@ export default function AgentOverlay() {
         />
       </div>
 
-      {/* Resize handles — edges */}
+      {/* Resize handles -- edges */}
       <div
         className="absolute top-0 left-2 right-2 h-[5px] cursor-n-resize"
         onMouseDown={(e) => handleResizeStart(e, "n")}
@@ -453,7 +233,7 @@ export default function AgentOverlay() {
         onMouseDown={(e) => handleResizeStart(e, "e")}
       />
 
-      {/* Resize handles — corners */}
+      {/* Resize handles -- corners */}
       <div
         className="absolute top-0 left-0 w-[10px] h-[10px] cursor-nw-resize"
         onMouseDown={(e) => handleResizeStart(e, "nw")}

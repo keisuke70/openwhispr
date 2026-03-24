@@ -1730,7 +1730,25 @@
     "learnMore": "瞭解更多",
     "integrations": "整合",
     "defaultUser": "使用者",
-    "notSignedIn": "尚未登入"
+    "notSignedIn": "尚未登入",
+    "chat": "聊天"
+  },
+  "chat": {
+    "newChat": "新對話",
+    "search": "搜尋對話...",
+    "archived": "已封存",
+    "noConversations": "開始你的第一個對話",
+    "selectChat": "選擇一個對話或開始新的對話",
+    "noResults": "沒有符合的對話",
+    "today": "今天",
+    "yesterday": "昨天",
+    "previousWeek": "最近 7 天",
+    "older": "更早",
+    "archive": "封存",
+    "unarchive": "取消封存",
+    "delete": "刪除",
+    "deleteConfirm": "此對話將被永久刪除，無法復原。",
+    "editTitle": "雙擊編輯標題"
   },
   "usage": {
     "approachingLimit": "即將達到每週上限",

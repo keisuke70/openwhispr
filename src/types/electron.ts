@@ -269,6 +269,18 @@ export interface LlamaVulkanDownloadProgress {
   percentage: number;
 }
 
+export interface ConversationPreview {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  archived_at?: string | null;
+  cloud_id?: string | null;
+  message_count: number;
+  last_message?: string | null;
+  last_message_role?: "user" | "assistant" | "system" | null;
+}
+
 export interface ReferralItem {
   id: string;
   email: string;
@@ -1014,6 +1026,7 @@ declare global {
           conversation_id: number;
           role: "user" | "assistant" | "system";
           content: string;
+          metadata?: string;
           created_at: string;
         }>;
       } | null>;
@@ -1038,9 +1051,26 @@ declare global {
           conversation_id: number;
           role: "user" | "assistant" | "system";
           content: string;
+          metadata?: string;
           created_at: string;
         }>
       >;
+      getAgentConversationsWithPreview?: (
+        limit?: number,
+        offset?: number,
+        includeArchived?: boolean
+      ) => Promise<ConversationPreview[]>;
+      searchAgentConversations?: (query: string, limit?: number) => Promise<ConversationPreview[]>;
+      archiveAgentConversation?: (id: number) => Promise<{ success: boolean }>;
+      unarchiveAgentConversation?: (id: number) => Promise<{ success: boolean }>;
+      updateAgentConversationCloudId?: (
+        id: number,
+        cloudId: string
+      ) => Promise<{ success: boolean }>;
+      semanticSearchConversations?: (
+        query: string,
+        limit?: number
+      ) => Promise<ConversationPreview[]>;
 
       // Deepgram Streaming
       deepgramStreamingWarmup?: (options?: { sampleRate?: number; language?: string }) => Promise<{

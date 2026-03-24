@@ -1735,7 +1735,25 @@
     "learnMore": "Saiba mais",
     "integrations": "Integrações",
     "defaultUser": "Usuário",
-    "notSignedIn": "Não conectado"
+    "notSignedIn": "Não conectado",
+    "chat": "Chat"
+  },
+  "chat": {
+    "newChat": "Novo chat",
+    "search": "Pesquisar conversas...",
+    "archived": "Arquivadas",
+    "noConversations": "Inicie sua primeira conversa",
+    "selectChat": "Selecione uma conversa ou inicie uma nova",
+    "noResults": "Nenhuma conversa encontrada",
+    "today": "Hoje",
+    "yesterday": "Ontem",
+    "previousWeek": "Últimos 7 dias",
+    "older": "Mais antigas",
+    "archive": "Arquivar",
+    "unarchive": "Desarquivar",
+    "delete": "Excluir",
+    "deleteConfirm": "Esta conversa será excluída permanentemente. Não é possível desfazer.",
+    "editTitle": "Clique duplo para editar o título"
   },
   "usage": {
     "approachingLimit": "Próximo do limite semanal",

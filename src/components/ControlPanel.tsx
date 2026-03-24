@@ -33,6 +33,7 @@ const PersonalNotesView = React.lazy(() => import("./notes/PersonalNotesView"));
 const DictionaryView = React.lazy(() => import("./DictionaryView"));
 const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
 const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
+const ChatView = React.lazy(() => import("./chat/ChatView"));
 const CommandSearch = React.lazy(() => import("./CommandSearch"));
 
 export default function ControlPanel() {
@@ -731,6 +732,11 @@ export default function ControlPanel() {
                   setShowSettings(true);
                 }}
               />
+            )}
+            {activeView === "chat" && (
+              <Suspense fallback={null}>
+                <ChatView />
+              </Suspense>
             )}
             {activeView === "personal-notes" && (
               <Suspense fallback={null}>
