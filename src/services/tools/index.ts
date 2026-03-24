@@ -14,15 +14,13 @@ interface ToolRegistrySettings {
   isSignedIn: boolean;
   gcalConnected: boolean;
   cloudBackupEnabled: boolean;
-  localSemanticSearchEnabled?: boolean;
 }
 
 export function createToolRegistry(settings: ToolRegistrySettings): ToolRegistry {
   const registry = new ToolRegistry();
 
   const useCloudSearch = settings.isSignedIn && settings.cloudBackupEnabled;
-  const useLocalSemanticSearch = !useCloudSearch && !!settings.localSemanticSearchEnabled;
-  registry.register(createSearchNotesTool({ useCloudSearch, useLocalSemanticSearch }));
+  registry.register(createSearchNotesTool({ useCloudSearch }));
   registry.register(getNoteTool);
   registry.register(createNoteTool);
   registry.register(updateNoteTool);

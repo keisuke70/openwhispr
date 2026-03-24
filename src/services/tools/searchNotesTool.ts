@@ -4,19 +4,15 @@ const MAX_CONTENT_LENGTH = 500;
 
 interface SearchToolOptions {
   useCloudSearch: boolean;
-  useLocalSemanticSearch: boolean;
 }
 
 export function createSearchNotesTool(options: SearchToolOptions): ToolDefinition {
-  const { useCloudSearch, useLocalSemanticSearch } = options;
-
-  const hasSemanticSearch = useCloudSearch || useLocalSemanticSearch;
+  const { useCloudSearch } = options;
 
   return {
     name: "search_notes",
-    description: hasSemanticSearch
-      ? "Search the user's notes using semantic search. Understands meaning and context, not just keywords. Returns matching notes with title, date, relevance score, and a preview of content."
-      : "Search the user's notes by keyword or phrase. Returns matching notes with title, date, and a preview of content.",
+    description:
+      "Search the user's notes using semantic search. Understands meaning and context, not just keywords. Returns matching notes with title, date, relevance score, and a preview of content.",
     parameters: {
       type: "object",
       properties: {
@@ -38,10 +34,10 @@ export function createSearchNotesTool(options: SearchToolOptions): ToolDefinitio
       const query = args.query as string;
       const limit = typeof args.limit === "number" ? args.limit : 5;
 
-      // Build fallback chain: cloud → local semantic → FTS5
+      // Fallback chain: cloud → local semantic (hybrid RRF) → FTS5 keyword
       const strategies: Array<() => Promise<ToolResult>> = [];
       if (useCloudSearch) strategies.push(() => executeCloudSearch(query, limit));
-      if (useLocalSemanticSearch) strategies.push(() => executeLocalSearch(query, limit, true));
+      strategies.push(() => executeLocalSearch(query, limit, true));
       strategies.push(() => executeLocalSearch(query, limit, false));
 
       for (let i = 0; i < strategies.length; i++) {

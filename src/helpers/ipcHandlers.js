@@ -104,7 +104,6 @@ class IPCHandlers {
     this.googleCalendarManager = managers.googleCalendarManager;
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
     this.audioTapManager = managers.audioTapManager;
-    this.qdrantManager = managers.qdrantManager;
     this.sessionId = crypto.randomUUID();
     this.assemblyAiStreaming = null;
     this.deepgramStreaming = null;
@@ -638,44 +637,6 @@ class IPCHandlers {
         this.broadcastToWindows("semantic-reindex-progress", { done: completed, total });
       });
       return { success: true, indexed: done };
-    });
-
-    ipcMain.handle("semantic-search-enable", async () => {
-      try {
-        const QdrantManager = require("./qdrantManager");
-        const vectorIndex = require("./vectorIndex");
-
-        if (!this.qdrantManager) {
-          this.qdrantManager = new QdrantManager();
-        }
-        await this.qdrantManager.start();
-
-        if (this.qdrantManager.isReady()) {
-          vectorIndex.init(this.qdrantManager.getPort());
-          await vectorIndex.ensureCollection();
-        }
-
-        process.env.LOCAL_SEMANTIC_SEARCH = "true";
-        await this.environmentManager.saveAllKeysToEnvFile();
-        return { success: true };
-      } catch (error) {
-        debugLogger.error("Failed to enable semantic search", { error: error.message });
-        return { success: false, error: error.message };
-      }
-    });
-
-    ipcMain.handle("semantic-search-disable", async () => {
-      try {
-        if (this.qdrantManager) {
-          await this.qdrantManager.stop();
-        }
-        delete process.env.LOCAL_SEMANTIC_SEARCH;
-        await this.environmentManager.saveAllKeysToEnvFile();
-        return { success: true };
-      } catch (error) {
-        debugLogger.error("Failed to disable semantic search", { error: error.message });
-        return { success: false, error: error.message };
-      }
     });
 
     ipcMain.handle("db-update-note-cloud-id", async (event, id, cloudId) => {

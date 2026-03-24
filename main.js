@@ -666,10 +666,10 @@ async function startApp() {
     });
   }
 
-  if (process.env.LOCAL_SEMANTIC_SEARCH === "true") {
-    const QdrantManager = require("./src/helpers/qdrantManager");
-    qdrantManager = new QdrantManager();
-    ipcHandlers.qdrantManager = qdrantManager;
+  // Local semantic search: start Qdrant sidecar + ensure embedding model is available
+  const QdrantManager = require("./src/helpers/qdrantManager");
+  qdrantManager = new QdrantManager();
+  if (qdrantManager.isAvailable()) {
     qdrantManager.start().then(() => {
       if (qdrantManager.isReady()) {
         const vectorIndex = require("./src/helpers/vectorIndex");
@@ -680,6 +680,13 @@ async function startApp() {
       }
     }).catch((err) => {
       debugLogger.debug("Qdrant startup error (non-fatal)", { error: err.message });
+    });
+  }
+
+  const localEmbeddings = require("./src/helpers/localEmbeddings");
+  if (!localEmbeddings.isAvailable()) {
+    localEmbeddings.downloadModel().catch((err) => {
+      debugLogger.debug("Embedding model download error (non-fatal)", { error: err.message });
     });
   }
 
@@ -1165,8 +1172,6 @@ if (gotSingleInstanceLock) {
     modelManager.stopServer().catch(() => {});
     if (qdrantManager) {
       qdrantManager.stop().catch(() => {});
-    } else if (ipcHandlers?.qdrantManager) {
-      ipcHandlers.qdrantManager.stop().catch(() => {});
     }
   });
 }

@@ -166,7 +166,7 @@ OpenWhispr is an Electron-based desktop dictation application that uses whisper.
 
 ### Local Semantic Search (Qdrant + MiniLM)
 
-Offline semantic search that finds notes by meaning, not just keywords. Gated behind a settings toggle (Settings → Privacy & Data → Local Semantic Search). Only used by the AI agent's `search_notes` tool — not the manual note search UI.
+Always-on offline semantic search that finds notes by meaning, not just keywords. Used by the AI agent's `search_notes` tool. Qdrant starts automatically on app launch; embedding model auto-downloads on first run if missing.
 
 **Architecture**:
 - **Qdrant sidecar**: Rust binary spawned as child process (`qdrantManager.js`), port 6333–6350
@@ -175,7 +175,7 @@ Offline semantic search that finds notes by meaning, not just keywords. Gated be
 - **Hybrid search**: FTS5 + Qdrant in parallel → Reciprocal Rank Fusion (K=60) with 0.3 cosine score threshold
 
 **Pipeline**:
-1. User enables toggle → `semantic-search-enable` IPC → starts Qdrant → reindexes all notes
+1. App launches → Qdrant binary starts → collection created. Embedding model auto-downloads if missing (~22MB)
 2. Note create/update/delete → SQLite write → background vector upsert/delete via `_asyncVectorUpsert()`/`_asyncVectorDelete()`
 3. Agent searches → `db-semantic-search-notes` IPC → parallel FTS5 + vector search → RRF merge → ranked results
 
@@ -183,13 +183,12 @@ Offline semantic search that finds notes by meaning, not just keywords. Gated be
 
 **Storage**:
 - Qdrant data: `~/.cache/openwhispr/qdrant-data/`
-- Qdrant binary: `resources/bin/qdrant-{platform}-{arch}`
-- Embedding model: `~/.cache/openwhispr/embedding-models/all-MiniLM-L6-v2/`
-- Setting persisted as `LOCAL_SEMANTIC_SEARCH=true` in `.env`
+- Qdrant binary: `resources/bin/qdrant-{platform}-{arch}` (bundled — downloaded during `prebuild` / `predev`)
+- Embedding model: `~/.cache/openwhispr/embedding-models/all-MiniLM-L6-v2/` (auto-downloaded on first launch)
 
 **Dependencies**: `@qdrant/js-client-rest`, `onnxruntime-node`
 
-**Dev setup**: Run `npm run download:qdrant` and `npm run download:embedding-model` before testing. The Qdrant binary is also downloaded automatically during `prebuild`.
+**Dev setup**: The Qdrant binary downloads automatically via `predev`/`prestart`. The embedding model auto-downloads on first app launch. To manually download: `npm run download:qdrant` and `npm run download:embedding-model`.
 
 ### Build Scripts (scripts/)
 
@@ -272,12 +271,10 @@ Settings stored in localStorage with these keys:
 - `hotkey`: Custom hotkey configuration
 - `hasCompletedOnboarding`: Onboarding completion flag
 - `customDictionary`: JSON array of words/phrases for improved transcription accuracy
-- `localSemanticSearchEnabled`: Boolean for local semantic search (Qdrant + MiniLM)
 
 Environment variables persisted to `.env` (via `saveAllKeysToEnvFile()`):
 - `LOCAL_TRANSCRIPTION_PROVIDER`: Transcription engine (`nvidia` for Parakeet)
 - `PARAKEET_MODEL`: Selected Parakeet model name (e.g., `parakeet-tdt-0.6b-v3`)
-- `LOCAL_SEMANTIC_SEARCH`: Set to `true` to auto-start Qdrant sidecar on app launch
 
 ### 6. Language Support
 
@@ -574,10 +571,9 @@ const { t } = useTranslation();
 - [ ] Verify meeting detection works with event-driven mode (check debug logs for "event-driven")
 - [ ] Test meeting notification suppression during recording
 - [ ] Test post-recording cooldown (notifications shouldn't flash immediately)
-- [ ] Enable local semantic search in Settings → Privacy & Data
-- [ ] Create a note about "quarterly revenue projections", search via agent for "financial forecast"
-- [ ] Disable local semantic search — verify Qdrant process stops
-- [ ] Verify FTS5 keyword search still works when semantic search is disabled
+- [ ] Create a note about "quarterly revenue projections", search via agent for "financial forecast" — should match semantically
+- [ ] Verify Qdrant starts on app launch (check debug logs for "qdrant started successfully")
+- [ ] Kill Qdrant process manually — verify FTS5 keyword search still works as fallback
 
 ### Common Issues and Solutions
 
@@ -623,10 +619,9 @@ const { t } = useTranslation();
    - If event-driven binary is missing, detection falls back to polling automatically
 
 7. **Local Semantic Search Not Working**:
-   - Run `npm run download:qdrant` to download the Qdrant binary for your platform
-   - Run `npm run download:embedding-model` to download the MiniLM ONNX model
-   - Check that `resources/bin/qdrant-{platform}-{arch}` exists
-   - Check that `~/.cache/openwhispr/embedding-models/all-MiniLM-L6-v2/model.onnx` exists
+   - Qdrant binary should be in `resources/bin/qdrant-{platform}-{arch}` (auto-downloaded during `predev`/`prebuild`)
+   - Embedding model should be in `~/.cache/openwhispr/embedding-models/all-MiniLM-L6-v2/model.onnx` (auto-downloaded on first app launch)
+   - Run `npm run download:qdrant` and `npm run download:embedding-model` manually if missing
    - Check debug logs for "qdrant" entries (port, health check, errors)
    - If Qdrant fails to start, search still works via FTS5 keyword fallback
    - Semantic search is only available through the AI agent's `search_notes` tool, not the manual search UI

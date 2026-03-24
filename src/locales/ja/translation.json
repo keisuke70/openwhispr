@@ -1352,8 +1352,6 @@
       "title": "プライバシー",
       "usageAnalytics": "使用状況の分析",
       "usageAnalyticsDescription": "匿名のパフォーマンスデータを共有して OpenWhispr の改善にご協力ください。文字起こしの内容は送信されません。タイミングとエラーデータのみです。",
-      "localSemanticSearch": "ローカルセマンティック検索",
-      "localSemanticSearchDescription": "キーワードだけでなく、意味でノートを検索します。埋め込みモデルと検索インデックスに約52 MBを使用します。完全にオフラインで動作します。",
       "dataRetention": "データ保持",
       "dataRetentionDescription": "文字起こしと音声を履歴にローカル保存します。無効にすると、文字起こしは貼り付けられますが保存されません。",
       "audioRetention": "音声の保持",

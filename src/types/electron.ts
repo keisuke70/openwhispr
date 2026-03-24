@@ -376,8 +376,6 @@ declare global {
       onSemanticReindexProgress: (
         callback: (data: { done: number; total: number }) => void
       ) => () => void;
-      enableSemanticSearch: () => Promise<{ success: boolean; error?: string }>;
-      disableSemanticSearch: () => Promise<{ success: boolean; error?: string }>;
       updateNoteCloudId: (id: number, cloudId: string) => Promise<NoteItem>;
 
       // Folder operations

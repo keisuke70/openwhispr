@@ -103,7 +103,7 @@ export default function AgentOverlay() {
 
       let registry: ToolRegistry | null = null;
       if (supportsTools) {
-        const cacheKey = `${settings.isSignedIn}-${settings.gcalConnected}-${settings.cloudBackupEnabled}-${settings.localSemanticSearchEnabled}`;
+        const cacheKey = `${settings.isSignedIn}-${settings.gcalConnected}-${settings.cloudBackupEnabled}`;
         if (toolRegistryRef.current?.key === cacheKey) {
           registry = toolRegistryRef.current.registry;
         } else {
@@ -111,7 +111,6 @@ export default function AgentOverlay() {
             isSignedIn: settings.isSignedIn,
             gcalConnected: settings.gcalConnected,
             cloudBackupEnabled: settings.cloudBackupEnabled,
-            localSemanticSearchEnabled: settings.localSemanticSearchEnabled,
           });
           toolRegistryRef.current = { key: cacheKey, registry };
         }

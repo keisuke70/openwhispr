@@ -92,8 +92,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("semantic-reindex-progress", listener);
     return () => ipcRenderer.removeListener("semantic-reindex-progress", listener);
   },
-  enableSemanticSearch: () => ipcRenderer.invoke("semantic-search-enable"),
-  disableSemanticSearch: () => ipcRenderer.invoke("semantic-search-disable"),
   updateNoteCloudId: (id, cloudId) => ipcRenderer.invoke("db-update-note-cloud-id", id, cloudId),
 
   // Folder functions

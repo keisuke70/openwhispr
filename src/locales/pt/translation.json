@@ -1324,8 +1324,6 @@
       "title": "Privacidade",
       "usageAnalytics": "Análise de uso",
       "usageAnalyticsDescription": "Ajude-nos a melhorar o OpenWhispr compartilhando métricas anônimas de desempenho. Nunca enviamos conteúdo de transcrição — apenas dados de tempo e erros.",
-      "localSemanticSearch": "Pesquisa semântica local",
-      "localSemanticSearchDescription": "Encontre notas por significado, não apenas por palavras-chave. Usa ~52 MB para o modelo de embeddings e o índice de pesquisa. Funciona totalmente offline.",
       "dataRetention": "Retenção de dados",
       "dataRetentionDescription": "Armazenar transcrições e áudio localmente no seu histórico. Quando desativado, as transcrições são coladas mas não salvas.",
       "audioRetention": "Retenção de áudio",
