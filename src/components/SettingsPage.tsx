@@ -1709,7 +1709,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
                   open={!!switchPreview}
                   onOpenChange={(open) => !open && setSwitchPreview(null)}
                 >
-                  <DialogContent className="sm:max-w-[360px]">
+                  <DialogContent className="sm:max-w-90">
                     <DialogHeader>
                       <DialogTitle>
                         {t("settingsPage.account.pricing.confirmSwitch.title")}

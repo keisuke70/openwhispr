@@ -667,39 +667,35 @@ export default function UploadAudioView({ onNoteCreated, onOpenSettings }: Uploa
       </div>
 
       <Dialog open={showNewFolderDialog} onOpenChange={setShowNewFolderDialog}>
-        <DialogContent className="sm:max-w-[320px] p-5 gap-3">
+        <DialogContent className="sm:max-w-95">
           <DialogHeader>
-            <DialogTitle className="text-sm">{t("notes.upload.newFolder")}</DialogTitle>
+            <DialogTitle>{t("notes.upload.newFolder")}</DialogTitle>
           </DialogHeader>
-          <Input
-            value={newFolderName}
-            onChange={(e) => setNewFolderName(e.target.value)}
-            placeholder={t("notes.upload.folderName")}
-            className="h-8 text-xs"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreateFolder();
-            }}
-          />
-          <DialogFooter className="gap-1.5">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground/50">
+              {t("notes.upload.folderName")}
+            </label>
+            <Input
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder={t("notes.folders.folderName")}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreateFolder();
+              }}
+            />
+          </div>
+          <DialogFooter>
             <Button
               variant="ghost"
-              size="sm"
               onClick={() => {
                 setShowNewFolderDialog(false);
                 setNewFolderName("");
               }}
-              className="h-7 text-xs"
             >
               {t("notes.upload.cancel")}
             </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleCreateFolder}
-              disabled={!newFolderName.trim()}
-              className="h-7 text-xs"
-            >
+            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
               {t("notes.upload.create")}
             </Button>
           </DialogFooter>

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Sparkles, Pencil, Trash2, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { cn } from "../lib/utils";
 import {
   useActions,
@@ -10,7 +11,6 @@ import {
   getActionName,
   getActionDescription,
 } from "../../stores/actionStore";
-import { notesInputClass, notesTextareaClass } from "./shared";
 import type { ActionItem } from "../../types/electron";
 
 interface ActionManagerDialogProps {
@@ -75,33 +75,29 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg gap-2.5">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-sm">
-            <Sparkles size={13} className="text-accent" />
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles size={14} className="text-accent" />
             {t("notes.actions.manageTitle")}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-xs font-medium text-foreground/50">
             {editingId !== null ? t("notes.actions.editAction") : t("notes.actions.addAction")}
           </p>
-          <input
-            type="text"
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder={t("notes.actions.namePlaceholder")}
             disabled={isSaving}
-            className={cn(notesInputClass, "disabled:opacity-40")}
           />
-          <input
-            type="text"
+          <Input
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder={t("notes.actions.descriptionPlaceholder")}
             disabled={isSaving}
-            className={cn(notesInputClass, "disabled:opacity-40")}
           />
           <textarea
             value={prompt}
@@ -109,26 +105,26 @@ export default function ActionManagerDialog({ open, onOpenChange }: ActionManage
             placeholder={t("notes.actions.promptPlaceholder")}
             rows={3}
             disabled={isSaving}
-            className={cn(notesTextareaClass, "disabled:opacity-40")}
+            className={cn(
+              "flex min-h-20 w-full rounded border border-border/70 bg-input px-3 py-2.5 text-sm text-foreground transition-colors duration-200 outline-none resize-y",
+              "placeholder:text-muted-foreground/40",
+              "hover:border-border-hover",
+              "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/10",
+              "dark:bg-surface-1 dark:border-border-subtle/50",
+              "dark:focus-visible:border-border-active dark:focus-visible:ring-ring/10",
+              "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-muted"
+            )}
           />
           <div className="flex items-center justify-end gap-2">
             {editingId !== null && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetForm}
-                disabled={isSaving}
-                className="h-7 text-xs"
-              >
+              <Button variant="ghost" size="sm" onClick={resetForm} disabled={isSaving}>
                 {t("notes.actions.cancel")}
               </Button>
             )}
             <Button
-              variant="default"
               size="sm"
               onClick={handleSave}
               disabled={isSaving || !name.trim() || !prompt.trim()}
-              className="h-7 text-xs"
             >
               {isSaving ? (
                 <Loader2 size={12} className="animate-spin" />

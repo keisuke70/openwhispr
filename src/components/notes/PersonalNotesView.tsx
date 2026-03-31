@@ -88,7 +88,7 @@ export default function PersonalNotesView({
   const [showActionManager, setShowActionManager] = useState(false);
   const [showNewNoteDialog, setShowNewNoteDialog] = useState(false);
   const [newNoteFolderId, setNewNoteFolderId] = useState<string>("");
-  const [showNewNoteFolderDialog, setShowNewNoteFolderDialog] = useState(false);
+  const [isCreatingNewNoteFolder, setIsCreatingNewNoteFolder] = useState(false);
   const [newNoteFolderName, setNewNoteFolderName] = useState("");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const enhancedSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -268,7 +268,7 @@ export default function PersonalNotesView({
 
   const handleNewNoteFolderChange = useCallback((val: string) => {
     if (val === "__create_new__") {
-      setShowNewNoteFolderDialog(true);
+      setIsCreatingNewNoteFolder(true);
       return;
     }
     setNewNoteFolderId(val);
@@ -283,7 +283,7 @@ export default function PersonalNotesView({
       setNewNoteFolderId(String(res.folder.id));
     }
     setNewNoteFolderName("");
-    setShowNewNoteFolderDialog(false);
+    setIsCreatingNewNoteFolder(false);
   }, [newNoteFolderName, loadFolders]);
 
   const handleConfirmNewNote = useCallback(async () => {
@@ -1021,93 +1021,93 @@ export default function PersonalNotesView({
         />
       )}
 
-      <Dialog open={showNewNoteDialog} onOpenChange={setShowNewNoteDialog}>
-        <DialogContent className="sm:max-w-[320px] p-5 gap-3">
+      <Dialog
+        open={showNewNoteDialog}
+        onOpenChange={(open) => {
+          setShowNewNoteDialog(open);
+          if (!open) {
+            setIsCreatingNewNoteFolder(false);
+            setNewNoteFolderName("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-95 p-6 gap-5">
           <DialogHeader>
-            <DialogTitle className="text-sm">{t("notes.sidebar.newNote")}</DialogTitle>
+            <DialogTitle>
+              {isCreatingNewNoteFolder ? t("notes.upload.newFolder") : t("notes.sidebar.newNote")}
+            </DialogTitle>
           </DialogHeader>
-          {folders.length > 0 && (
-            <div className="flex items-center gap-2">
-              <FolderOpen size={12} className="text-foreground/20 shrink-0" />
-              <Select value={newNoteFolderId} onValueChange={handleNewNoteFolderChange}>
-                <SelectTrigger className="h-7 flex-1 text-xs rounded-lg px-2.5 [&>svg]:h-3 [&>svg]:w-3">
-                  <SelectValue placeholder={t("notes.upload.selectFolder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {folders.map((f) => (
-                    <SelectItem key={f.id} value={String(f.id)}>
-                      {f.name}
-                    </SelectItem>
-                  ))}
-                  <SelectSeparator />
-                  <SelectItem value="__create_new__">
-                    <span className="flex items-center gap-1.5 text-primary/60">
-                      <Plus size={11} />
-                      {t("notes.upload.newFolder")}
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <DialogFooter className="gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowNewNoteDialog(false)}
-              className="h-7 text-xs"
-            >
-              {t("notes.upload.cancel")}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleConfirmNewNote}
-              disabled={!newNoteFolderId}
-              className="h-7 text-xs"
-            >
-              {t("notes.upload.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      <Dialog open={showNewNoteFolderDialog} onOpenChange={setShowNewNoteFolderDialog}>
-        <DialogContent className="sm:max-w-[320px] p-5 gap-3">
-          <DialogHeader>
-            <DialogTitle className="text-sm">{t("notes.upload.newFolder")}</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={newNoteFolderName}
-            onChange={(e) => setNewNoteFolderName(e.target.value)}
-            placeholder={t("notes.upload.folderName")}
-            className="h-8 text-xs"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreateNewNoteFolder();
-            }}
-          />
-          <DialogFooter className="gap-1.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowNewNoteFolderDialog(false);
-                setNewNoteFolderName("");
-              }}
-              className="h-7 text-xs"
-            >
-              {t("notes.upload.cancel")}
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleCreateNewNoteFolder}
-              disabled={!newNoteFolderName.trim()}
-              className="h-7 text-xs"
-            >
-              {t("notes.upload.create")}
-            </Button>
+          {isCreatingNewNoteFolder ? (
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-foreground/50">
+                {t("notes.upload.folderName")}
+              </label>
+              <Input
+                value={newNoteFolderName}
+                onChange={(e) => setNewNoteFolderName(e.target.value)}
+                placeholder={t("notes.folders.folderName")}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateNewNoteFolder();
+                }}
+              />
+            </div>
+          ) : (
+            folders.length > 0 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-foreground/50">
+                  {t("notes.folders.title")}
+                </label>
+                <Select value={newNoteFolderId} onValueChange={handleNewNoteFolderChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("notes.upload.selectFolder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {folders.map((f) => (
+                      <SelectItem key={f.id} value={String(f.id)}>
+                        {f.name}
+                      </SelectItem>
+                    ))}
+                    <SelectSeparator />
+                    <SelectItem value="__create_new__">
+                      <span className="flex items-center gap-1.5 text-primary/60">
+                        <Plus size={13} />
+                        {t("notes.upload.newFolder")}
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )
+          )}
+
+          <DialogFooter>
+            {isCreatingNewNoteFolder ? (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setIsCreatingNewNoteFolder(false);
+                    setNewNoteFolderName("");
+                  }}
+                >
+                  {t("common.back")}
+                </Button>
+                <Button onClick={handleCreateNewNoteFolder} disabled={!newNoteFolderName.trim()}>
+                  {t("notes.upload.create")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => setShowNewNoteDialog(false)}>
+                  {t("notes.upload.cancel")}
+                </Button>
+                <Button onClick={handleConfirmNewNote} disabled={!newNoteFolderId}>
+                  {t("notes.upload.create")}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
