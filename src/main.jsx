@@ -10,18 +10,18 @@ import { ToastProvider } from "./components/ui/Toast.tsx";
 import { SettingsProvider } from "./hooks/useSettings";
 import { useTheme } from "./hooks/useTheme";
 import { useAuth } from "./hooks/useAuth";
-import { areRequiredPermissionsMet } from "./utils/permissions";
+
 import i18n from "./i18n";
 import "./index.css";
 
 const controlPanelImport = () => import("./components/ControlPanel.tsx");
 const onboardingFlowImport = () => import("./components/OnboardingFlow.tsx");
 const agentOverlayImport = () => import("./components/AgentOverlay.tsx");
-const permissionsGateImport = () => import("./components/PermissionsGate.tsx");
+
 const ControlPanel = React.lazy(controlPanelImport);
 const OnboardingFlow = React.lazy(onboardingFlowImport);
 const AgentOverlay = React.lazy(agentOverlayImport);
-const PermissionsGate = React.lazy(permissionsGateImport);
+
 import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.tsx";
 import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 
@@ -294,7 +294,7 @@ function MainApp() {
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [needsReauth, setNeedsReauth] = useState(false);
-  const [needsPermissions, setNeedsPermissions] = useState(false);
+
   const [isLoading, setIsLoading] = useState(true);
 
   const isAgentPanel = window.location.search.includes("agent=true");
@@ -309,7 +309,7 @@ function MainApp() {
       agentOverlayImport().catch(() => {});
     } else if (isControlPanel) {
       controlPanelImport().catch(() => {});
-      permissionsGateImport().catch(() => {});
+
       if (!localStorage.getItem("onboardingCompleted")) {
         onboardingFlowImport().catch(() => {});
       }
@@ -340,13 +340,9 @@ function MainApp() {
         setShowOnboarding(true);
       } else if (!isSignedIn && !authSkipped) {
         setNeedsReauth(true);
-      } else {
-        // Check permissions from localStorage — PermissionsGate does the real async checks
-        const micOk = localStorage.getItem("micPermissionGranted") === "true";
-        if (!areRequiredPermissionsMet(micOk)) {
-          setNeedsPermissions(true);
-        }
       }
+      // Otherwise: returning user with auth — go straight to ControlPanel.
+      // Permissions are checked at point-of-use (recording, device enumeration).
     }
 
     if (isDictationPanel && !resolved) {
@@ -362,12 +358,7 @@ function MainApp() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    setNeedsPermissions(false); // onboarding already handled permissions
     localStorage.setItem("onboardingCompleted", "true");
-  };
-
-  const handlePermissionsComplete = () => {
-    setNeedsPermissions(false);
   };
 
   if (isAgentPanel) {
@@ -426,15 +417,6 @@ function MainApp() {
           </div>
         </div>
       </div>
-    );
-  }
-
-  // Returning user missing permissions (new machine, re-auth, etc.)
-  if (isControlPanel && needsPermissions) {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        <PermissionsGate onComplete={handlePermissionsComplete} />
-      </Suspense>
     );
   }
 

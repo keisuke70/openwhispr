@@ -187,7 +187,11 @@ class IPCHandlers {
     const { listNvidiaGpus } = require("../utils/gpuDetection");
     const gpus = await listNvidiaGpus();
     if (gpus.length > 0) {
-      debugLogger.info("NVIDIA GPUs detected", { count: gpus.length, devices: gpus.map(g => `${g.name} (${g.vramMb}MB)`) }, "gpu");
+      debugLogger.info(
+        "NVIDIA GPUs detected",
+        { count: gpus.length, devices: gpus.map((g) => `${g.name} (${g.vramMb}MB)`) },
+        "gpu"
+      );
     } else {
       debugLogger.debug("No NVIDIA GPUs detected", {}, "gpu");
     }
@@ -1164,17 +1168,27 @@ class IPCHandlers {
       if (oldIdx !== idx) {
         try {
           if (purpose === "transcription" && this.whisperManager?.serverManager?.process) {
-            debugLogger.info("Restarting whisper-server for GPU change", { from: oldIdx, to: idx }, "gpu");
+            debugLogger.info(
+              "Restarting whisper-server for GPU change",
+              { from: oldIdx, to: idx },
+              "gpu"
+            );
             const modelName = this.whisperManager.currentServerModel;
             await this.whisperManager.stopServer();
             if (modelName) {
-              await this.whisperManager.startServer(modelName, { useCuda: !!process.env.WHISPER_CUDA_ENABLED });
+              await this.whisperManager.startServer(modelName, {
+                useCuda: !!process.env.WHISPER_CUDA_ENABLED,
+              });
             }
           }
           if (purpose === "intelligence") {
             const modelManager = require("./modelManagerBridge").default;
             if (modelManager.serverManager?.process) {
-              debugLogger.info("Restarting llama-server for GPU change", { from: oldIdx, to: idx }, "gpu");
+              debugLogger.info(
+                "Restarting llama-server for GPU change",
+                { from: oldIdx, to: idx },
+                "gpu"
+              );
               const modelPath = modelManager.serverManager.modelPath;
               await modelManager.serverManager.stop();
               if (modelPath) {
@@ -1183,7 +1197,11 @@ class IPCHandlers {
             }
           }
         } catch (err) {
-          debugLogger.error("Failed to restart server after GPU change", { error: err.message, purpose }, "gpu");
+          debugLogger.error(
+            "Failed to restart server after GPU change",
+            { error: err.message, purpose },
+            "gpu"
+          );
         }
       }
 
@@ -2299,10 +2317,14 @@ class IPCHandlers {
         return { granted: false, status: "unsupported", mode: "unsupported" };
       }
 
-      const screenStatus = systemPreferences.getMediaAccessStatus("screen");
-      const tapStatus = this.audioTapManager.getPermissionStatus();
-      const granted = screenStatus === "granted" || tapStatus === "granted";
-      return { granted, status: granted ? "granted" : screenStatus, mode: "native" };
+      // Use cached permission status from the audio tap manager.
+      // We intentionally do NOT probe here — probing spawns the native
+      // binary which triggers the macOS consent dialog.  The status gets
+      // resolved to "granted" or "denied" after the user explicitly
+      // clicks "Grant Access" (request-system-audio-access) or after a
+      // successful recording session.
+      const result = this.audioTapManager.checkAccess();
+      return { granted: result.granted, status: result.status, mode: "native" };
     });
 
     ipcMain.handle("request-system-audio-access", async () => {
@@ -2314,12 +2336,7 @@ class IPCHandlers {
         return { granted: false, status: "unsupported", mode: "unsupported" };
       }
 
-      const screenStatus = systemPreferences.getMediaAccessStatus("screen");
-      if (screenStatus === "granted") {
-        return { granted: true, status: "granted", mode: "native" };
-      }
-
-      // Probe the binary — AudioHardwareCreateProcessTap triggers the native consent dialog
+      // Probe the binary — AudioHardwareCreateProcessTap triggers the native consent dialog.
       try {
         const result = await this.audioTapManager.requestAccess();
         if (result.granted) {
@@ -2331,7 +2348,8 @@ class IPCHandlers {
 
       // Fallback for older macOS or if the native prompt was denied
       await openSystemSettings("systemAudio");
-      return { granted: false, status: screenStatus, mode: "native" };
+      const status = this.audioTapManager.getPermissionStatus();
+      return { granted: false, status, mode: "native" };
     });
 
     // Auth: clear all session cookies for sign-out.
@@ -2801,11 +2819,7 @@ class IPCHandlers {
     // Meeting mic captures at 24kHz (for OpenAI Realtime), but local engines
     // expect 16kHz. Downsample with linear interpolation (3:2 ratio).
     const downsample24kTo16k = (pcmBuffer) => {
-      const input = new Int16Array(
-        pcmBuffer.buffer,
-        pcmBuffer.byteOffset,
-        pcmBuffer.length / 2
-      );
+      const input = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.length / 2);
       const ratio = 1.5; // 24000 / 16000
       const outputLength = Math.floor(input.length / ratio);
       const output = new Int16Array(outputLength);
@@ -2872,9 +2886,13 @@ class IPCHandlers {
       try {
         let result;
         if (meetingLocalProvider === "nvidia") {
-          result = await this.parakeetManager.transcribeLocalParakeet(wav, { model: meetingLocalModel });
+          result = await this.parakeetManager.transcribeLocalParakeet(wav, {
+            model: meetingLocalModel,
+          });
         } else {
-          result = await this.whisperManager.transcribeLocalWhisper(wav, { model: meetingLocalModel });
+          result = await this.whisperManager.transcribeLocalWhisper(wav, {
+            model: meetingLocalModel,
+          });
         }
 
         if (result?.success && result.text?.trim()) {

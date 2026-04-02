@@ -69,6 +69,15 @@ class AudioTapManager {
     return this.permissionStatus;
   }
 
+  /** Cached status check — never spawns processes or triggers system dialogs. */
+  checkAccess() {
+    if (!this.isSupported()) {
+      return { granted: false, status: "unsupported" };
+    }
+    const status = this.getPermissionStatus();
+    return { granted: status === "granted", status };
+  }
+
   async requestAccess() {
     if (!this.isSupported()) {
       return { granted: false, status: "unsupported" };
