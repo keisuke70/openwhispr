@@ -7,6 +7,14 @@
       "uiDescription": "Elige el idioma usado en la interfaz de OpenWhispr",
       "transcriptionLabel": "Idioma de transcripción",
       "transcriptionDescription": "Elige el idioma que hablas para mejorar la precisión"
+    },
+    "noteFiles": {
+      "title": "Guardar notas como archivos",
+      "description": "Guardar notas automáticamente como archivos .md en disco, organizadas por carpeta",
+      "path": "Ubicación de guardado",
+      "changePath": "Cambiar ubicación",
+      "rebuild": "Reconstruir todos los archivos",
+      "rebuildDescription": "Resincronizar todas las notas al disco"
     }
   },
   "tray": {
@@ -1644,7 +1652,8 @@
       "rename": "Renombrar",
       "searchFolders": "Buscar carpetas...",
       "noResults": "No se encontraron carpetas",
-      "newFolder": "Nueva carpeta"
+      "newFolder": "Nueva carpeta",
+      "showInFileManager": "Mostrar en {{manager}}"
     },
     "actions": {
       "manage": "Gestionar acciones...",

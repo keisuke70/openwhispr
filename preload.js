@@ -102,6 +102,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
   renameFolder: (id, name) => ipcRenderer.invoke("db-rename-folder", id, name),
   getFolderNoteCounts: () => ipcRenderer.invoke("db-get-folder-note-counts"),
 
+  // Note files (markdown mirror) functions
+  noteFilesSetEnabled: (enabled, customPath) =>
+    ipcRenderer.invoke("note-files-set-enabled", enabled, customPath),
+  noteFilesSetPath: (path) => ipcRenderer.invoke("note-files-set-path", path),
+  noteFilesRebuild: () => ipcRenderer.invoke("note-files-rebuild"),
+  noteFilesGetDefaultPath: () => ipcRenderer.invoke("note-files-get-default-path"),
+  noteFilesPickFolder: () => ipcRenderer.invoke("note-files-pick-folder"),
+  showNoteFile: (noteId) => ipcRenderer.invoke("show-note-file", noteId),
+  showFolderInExplorer: (folderName) => ipcRenderer.invoke("show-folder-in-explorer", folderName),
+
   // Action functions
   getActions: () => ipcRenderer.invoke("db-get-actions"),
   getAction: (id) => ipcRenderer.invoke("db-get-action", id),

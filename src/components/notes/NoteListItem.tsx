@@ -1,6 +1,14 @@
 import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { MoreHorizontal, FolderOpen, Trash2, Check, Plus, Search } from "lucide-react";
+import {
+  MoreHorizontal,
+  FolderOpen,
+  Trash2,
+  Check,
+  Plus,
+  Search,
+  ExternalLink,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -38,6 +46,7 @@ interface NoteListItemProps {
     onDragEnd: () => void;
   };
   isDragging?: boolean;
+  noteFilesEnabled?: boolean;
 }
 
 function stripMarkdown(text: string): string {
@@ -81,12 +90,19 @@ export default function NoteListItem({
   onCreateFolderAndMove,
   dragHandlers,
   isDragging,
+  noteFilesEnabled,
 }: NoteListItemProps) {
   const { t } = useTranslation();
   const preview = stripMarkdown(note.content);
   const [folderSearch, setFolderSearch] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  const fileManagerName = navigator.platform.startsWith("Mac")
+    ? "Finder"
+    : navigator.platform.startsWith("Win")
+      ? "Explorer"
+      : "Files";
 
   const filteredFolders = useMemo(
     () =>
@@ -142,6 +158,24 @@ export default function NoteListItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" sideOffset={4} className="min-w-40">
+                {noteFilesEnabled && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.electronAPI?.showNoteFile?.(note.id);
+                      }}
+                      className="text-xs gap-2 rounded-lg px-2.5 py-1.5 cursor-pointer focus:bg-foreground/5"
+                    >
+                      <ExternalLink
+                        size={12}
+                        className="text-muted-foreground/80 dark:text-muted-foreground/60"
+                      />
+                      {t("notes.context.showInFileManager", { manager: fileManagerName })}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger className="text-xs gap-2 rounded-lg px-2.5 py-1.5 cursor-pointer focus:bg-foreground/5 data-[state=open]:bg-foreground/5">
                     <FolderOpen

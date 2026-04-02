@@ -418,6 +418,18 @@ declare global {
       ) => Promise<{ success: boolean; folder?: FolderItem; error?: string }>;
       getFolderNoteCounts: () => Promise<Array<{ folder_id: number; count: number }>>;
 
+      // Note files (markdown mirror)
+      noteFilesSetEnabled?: (
+        enabled: boolean,
+        customPath?: string
+      ) => Promise<{ success: boolean; error?: string }>;
+      noteFilesSetPath?: (path: string) => Promise<{ success: boolean; error?: string }>;
+      noteFilesRebuild?: () => Promise<{ success: boolean; error?: string }>;
+      noteFilesGetDefaultPath?: () => Promise<string>;
+      noteFilesPickFolder?: () => Promise<{ canceled: boolean; path?: string }>;
+      showNoteFile?: (noteId: number) => Promise<{ success: boolean }>;
+      showFolderInExplorer?: (folderName: string) => Promise<{ success: boolean }>;
+
       // Action operations
       getActions: () => Promise<ActionItem[]>;
       getAction: (id: number) => Promise<ActionItem | null>;
@@ -1206,9 +1218,7 @@ declare global {
       gcalGetUpcomingEvents?: (
         windowMinutes?: number
       ) => Promise<{ success: boolean; events: any[] }>;
-      gcalGetEvent?: (
-        eventId: string
-      ) => Promise<{
+      gcalGetEvent?: (eventId: string) => Promise<{
         success: boolean;
         event: {
           id: string;

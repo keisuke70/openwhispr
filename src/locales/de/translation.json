@@ -7,6 +7,14 @@
       "uiDescription": "Wählen Sie die Sprache für die OpenWhispr-Oberfläche",
       "transcriptionLabel": "Transkriptionssprache",
       "transcriptionDescription": "Wählen Sie die Sprache, die Sie sprechen, für genauere Transkription"
+    },
+    "noteFiles": {
+      "title": "Notizen als Dateien speichern",
+      "description": "Notizen automatisch als .md-Dateien auf der Festplatte speichern, nach Ordner sortiert",
+      "path": "Speicherort",
+      "changePath": "Speicherort ändern",
+      "rebuild": "Alle Dateien neu erstellen",
+      "rebuildDescription": "Alle Notizen erneut auf die Festplatte synchronisieren"
     }
   },
   "tray": {
@@ -1644,7 +1652,8 @@
       "rename": "Umbenennen",
       "searchFolders": "Ordner suchen...",
       "noResults": "Keine Ordner gefunden",
-      "newFolder": "Neuer Ordner"
+      "newFolder": "Neuer Ordner",
+      "showInFileManager": "Im {{manager}} anzeigen"
     },
     "actions": {
       "manage": "Aktionen verwalten...",

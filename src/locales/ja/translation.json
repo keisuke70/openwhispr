@@ -7,6 +7,14 @@
       "uiDescription": "OpenWhispr のインターフェースで使用する言語を選択",
       "transcriptionLabel": "文字起こし言語",
       "transcriptionDescription": "より正確な文字起こしのために話す言語を選択"
+    },
+    "noteFiles": {
+      "title": "ノートをファイルとして保存",
+      "description": "ノートを .md ファイルとしてディスクに自動保存し、フォルダごとに整理",
+      "path": "保存先",
+      "changePath": "保存先を変更",
+      "rebuild": "すべてのファイルを再構築",
+      "rebuildDescription": "すべてのノートをディスクに再同期"
     }
   },
   "tray": {
@@ -1504,7 +1512,8 @@
       "rename": "名前を変更",
       "searchFolders": "フォルダを検索...",
       "noResults": "フォルダが見つかりません",
-      "newFolder": "新しいフォルダ"
+      "newFolder": "新しいフォルダ",
+      "showInFileManager": "{{manager}}で表示"
     },
     "actions": {
       "manage": "アクションを管理...",

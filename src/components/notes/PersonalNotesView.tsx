@@ -11,6 +11,7 @@ import {
   SquarePen,
   Search,
   Sparkles,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -101,6 +102,12 @@ export default function PersonalNotesView({
   const { toast } = useToast();
   const isCloudMode = useSettingsStore(selectIsCloudReasoningMode);
   const effectiveModelId = useSettingsStore((s) => s.reasoningModel);
+  const noteFilesEnabled = useSettingsStore((s) => s.noteFilesEnabled);
+  const fileManagerName = navigator.platform.startsWith("Mac")
+    ? "Finder"
+    : navigator.platform.startsWith("Win")
+      ? "Explorer"
+      : "Files";
   const { isComplete: isOnboardingComplete, complete: completeOnboarding } = useNotesOnboarding();
 
   const {
@@ -650,7 +657,7 @@ export default function PersonalNotesView({
                       {count > 0 ? count : ""}
                     </span>
                   )}
-                  {!folder.is_default && (
+                  {(!folder.is_default || noteFilesEnabled) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <span
@@ -663,28 +670,45 @@ export default function PersonalNotesView({
                         </span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" sideOffset={4} className="min-w-32">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setRenamingFolderId(folder.id);
-                            setRenameValue(folder.name);
-                          }}
-                          className="text-xs gap-2 rounded-md px-2 py-1"
-                        >
-                          <Pencil size={11} className="text-muted-foreground/60" />
-                          {t("notes.context.rename")}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteFolder(folder.id);
-                          }}
-                          className="text-xs gap-2 rounded-md px-2 py-1 text-destructive focus:text-destructive focus:bg-destructive/10"
-                        >
-                          <Trash2 size={11} />
-                          {t("notes.context.delete")}
-                        </DropdownMenuItem>
+                        {noteFilesEnabled && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.electronAPI?.showFolderInExplorer?.(folder.name);
+                            }}
+                            className="text-xs gap-2 rounded-md px-2 py-1"
+                          >
+                            <ExternalLink size={11} className="text-muted-foreground/60" />
+                            {t("notes.context.showInFileManager", { manager: fileManagerName })}
+                          </DropdownMenuItem>
+                        )}
+                        {!folder.is_default && (
+                          <>
+                            {noteFilesEnabled && <DropdownMenuSeparator />}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setRenamingFolderId(folder.id);
+                                setRenameValue(folder.name);
+                              }}
+                              className="text-xs gap-2 rounded-md px-2 py-1"
+                            >
+                              <Pencil size={11} className="text-muted-foreground/60" />
+                              {t("notes.context.rename")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(folder.id);
+                              }}
+                              className="text-xs gap-2 rounded-md px-2 py-1 text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              <Trash2 size={11} />
+                              {t("notes.context.delete")}
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   )}
@@ -829,6 +853,7 @@ export default function PersonalNotesView({
                   onCreateFolderAndMove={handleCreateFolderAndMove}
                   dragHandlers={noteDragHandlers(note.id, note.title)}
                   isDragging={dragState.draggingNoteId === note.id}
+                  noteFilesEnabled={noteFilesEnabled}
                 />
               ))
             )}

@@ -637,11 +637,13 @@ function GpuDeviceSelector({ purpose }: { purpose: "transcription" | "intelligen
     Promise.all([
       window.electronAPI?.listGpus?.() ?? Promise.resolve([]),
       window.electronAPI?.getGpuDeviceIndex?.(purpose) ?? Promise.resolve("0"),
-    ]).then(([gpuList, idx]) => {
-      setGpus(gpuList);
-      setSelectedIndex(idx);
-      setLoaded(true);
-    }).catch(() => setLoaded(true));
+    ])
+      .then(([gpuList, idx]) => {
+        setGpus(gpuList);
+        setSelectedIndex(idx);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
   }, [purpose]);
 
   if (!loaded || gpus.length < 2) return null;
@@ -670,7 +672,18 @@ function GpuDeviceSelector({ purpose }: { purpose: "transcription" | "intelligen
                 </option>
               ))}
             </select>
-            <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+            <svg
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </div>
         </SettingsPanelRow>
       </SettingsPanel>
@@ -768,6 +781,10 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setDataRetentionEnabled,
     customDictionary,
     setCustomDictionary,
+    noteFilesEnabled,
+    setNoteFilesEnabled,
+    noteFilesPath,
+    setNoteFilesPath,
   } = useSettings();
 
   const agentKey = useSettingsStore((s) => s.agentKey);
@@ -1007,6 +1024,40 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
       }
     }
   };
+
+  const [noteFilesDefaultPath, setNoteFilesDefaultPath] = useState("");
+  const [noteFilesRebuilding, setNoteFilesRebuilding] = useState(false);
+
+  useEffect(() => {
+    if (!noteFilesEnabled) return;
+    window.electronAPI?.noteFilesGetDefaultPath?.().then((p) => {
+      if (p) setNoteFilesDefaultPath(p);
+    });
+  }, [noteFilesEnabled]);
+
+  const handleNoteFilesToggle = useCallback(
+    async (enabled: boolean) => {
+      setNoteFilesEnabled(enabled);
+      await window.electronAPI?.noteFilesSetEnabled?.(enabled, noteFilesPath || undefined);
+    },
+    [setNoteFilesEnabled, noteFilesPath]
+  );
+
+  const handleNoteFilesChangePath = useCallback(async () => {
+    const result = await window.electronAPI?.noteFilesPickFolder?.();
+    if (result?.canceled || !result?.path) return;
+    setNoteFilesPath(result.path);
+    await window.electronAPI?.noteFilesSetPath?.(result.path);
+  }, [setNoteFilesPath]);
+
+  const handleNoteFilesRebuild = useCallback(async () => {
+    setNoteFilesRebuilding(true);
+    try {
+      await window.electronAPI?.noteFilesRebuild?.();
+    } finally {
+      setNoteFilesRebuilding(false);
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -2212,6 +2263,60 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               </SettingsPanel>
             </div>
 
+            {/* Save Notes as Files */}
+            <div>
+              <SectionHeader title={t("settings.noteFiles.title")} />
+              <SettingsPanel>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settings.noteFiles.title")}
+                    description={t("settings.noteFiles.description")}
+                  >
+                    <Toggle checked={noteFilesEnabled} onChange={handleNoteFilesToggle} />
+                  </SettingsRow>
+                </SettingsPanelRow>
+                {noteFilesEnabled && (
+                  <>
+                    <SettingsPanelRow>
+                      <SettingsRow
+                        label={t("settings.noteFiles.path")}
+                        description={noteFilesPath || noteFilesDefaultPath || "..."}
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={handleNoteFilesChangePath}
+                        >
+                          {t("settings.noteFiles.changePath")}
+                        </Button>
+                      </SettingsRow>
+                    </SettingsPanelRow>
+                    <SettingsPanelRow>
+                      <SettingsRow
+                        label={t("settings.noteFiles.rebuild")}
+                        description={t("settings.noteFiles.rebuildDescription")}
+                      >
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          disabled={noteFilesRebuilding}
+                          onClick={handleNoteFilesRebuild}
+                        >
+                          {noteFilesRebuilding ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            t("settings.noteFiles.rebuild")
+                          )}
+                        </Button>
+                      </SettingsRow>
+                    </SettingsPanelRow>
+                  </>
+                )}
+              </SettingsPanel>
+            </div>
+
             {/* Floating Icon */}
             <div>
               <SectionHeader
@@ -2823,7 +2928,6 @@ EOF`,
                 })()}
               </div>
             )}
-
           </div>
         );
 
@@ -3451,7 +3555,6 @@ EOF`,
                 </div>
               )}
             </div>
-
           </div>
         );
 

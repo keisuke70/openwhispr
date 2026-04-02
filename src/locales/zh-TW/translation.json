@@ -7,6 +7,14 @@
       "uiDescription": "選擇 OpenWhispr 介面使用的語言",
       "transcriptionLabel": "轉錄語言",
       "transcriptionDescription": "選擇你說話的語言，以提高轉錄準確度"
+    },
+    "noteFiles": {
+      "title": "將筆記儲存為檔案",
+      "description": "自動將筆記儲存為 .md 檔案到磁碟，按資料夾分類",
+      "path": "儲存位置",
+      "changePath": "變更位置",
+      "rebuild": "重建所有檔案",
+      "rebuildDescription": "將所有筆記重新同步到磁碟"
     }
   },
   "tray": {
@@ -1639,7 +1647,8 @@
       "rename": "重新命名",
       "searchFolders": "搜尋資料夾...",
       "noResults": "找不到資料夾",
-      "newFolder": "新增資料夾"
+      "newFolder": "新增資料夾",
+      "showInFileManager": "在{{manager}}中顯示"
     },
     "actions": {
       "manage": "管理動作...",

@@ -7,6 +7,14 @@
       "uiDescription": "Choose the language used throughout OpenWhispr's interface",
       "transcriptionLabel": "Transcription language",
       "transcriptionDescription": "Choose the language you speak for more accurate transcription"
+    },
+    "noteFiles": {
+      "title": "Save notes as files",
+      "description": "Automatically save notes as .md files on disk, organized by folder",
+      "path": "Save location",
+      "changePath": "Change location",
+      "rebuild": "Rebuild all files",
+      "rebuildDescription": "Re-sync all notes to disk"
     }
   },
   "tray": {
@@ -1769,7 +1777,8 @@
       "rename": "Rename",
       "searchFolders": "Search folders...",
       "noResults": "No folders found",
-      "newFolder": "New folder"
+      "newFolder": "New folder",
+      "showInFileManager": "Show in {{manager}}"
     },
     "actions": {
       "done": "Done",

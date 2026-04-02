@@ -7,6 +7,14 @@
       "uiDescription": "选择 OpenWhispr 界面使用的语言",
       "transcriptionLabel": "转录语言",
       "transcriptionDescription": "选择你说话的语言，以提高转录准确率"
+    },
+    "noteFiles": {
+      "title": "将笔记保存为文件",
+      "description": "自动将笔记保存为 .md 文件到磁盘，按文件夹分类",
+      "path": "保存位置",
+      "changePath": "更改位置",
+      "rebuild": "重建所有文件",
+      "rebuildDescription": "将所有笔记重新同步到磁盘"
     }
   },
   "tray": {
@@ -1639,7 +1647,8 @@
       "rename": "重命名",
       "searchFolders": "搜索文件夹...",
       "noResults": "未找到文件夹",
-      "newFolder": "新建文件夹"
+      "newFolder": "新建文件夹",
+      "showInFileManager": "在{{manager}}中显示"
     },
     "actions": {
       "manage": "管理操作...",

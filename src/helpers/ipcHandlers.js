@@ -117,6 +117,7 @@ class IPCHandlers {
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
+    this._noteFilesEnabled = false;
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
     this._logDetectedGpus();
@@ -145,6 +146,46 @@ class IPCHandlers {
       if (!vectorIndex.isReady()) return;
       vectorIndex.deleteNote(noteId).catch(() => {});
     });
+  }
+
+  _asyncMirrorWrite(note) {
+    if (!this._noteFilesEnabled) return;
+    setImmediate(() => {
+      const markdownMirror = require("./markdownMirror");
+      const folderName = this._getFolderName(note.folder_id);
+      markdownMirror.writeNote(note, folderName);
+    });
+  }
+
+  _asyncMirrorDelete(noteId) {
+    if (!this._noteFilesEnabled) return;
+    setImmediate(() => {
+      const markdownMirror = require("./markdownMirror");
+      markdownMirror.deleteNote(noteId);
+    });
+  }
+
+  _buildFolderMap() {
+    const folders = this.databaseManager.getFolders();
+    const map = {};
+    for (const f of folders) {
+      map[f.id] = f.name;
+    }
+    return map;
+  }
+
+  _rebuildMirror(basePath) {
+    const markdownMirror = require("./markdownMirror");
+    if (basePath) markdownMirror.init(basePath);
+    markdownMirror.rebuildAll(this.databaseManager.getNotes(null, 99999), this._buildFolderMap());
+  }
+
+  _getFolderName(folderId) {
+    if (!folderId) return "Personal";
+    const folder = this.databaseManager.db
+      .prepare("SELECT name FROM folders WHERE id = ?")
+      .get(folderId);
+    return folder?.name || "Personal";
   }
 
   _getDictionarySafe() {
@@ -577,6 +618,7 @@ class IPCHandlers {
         if (result?.success && result?.note) {
           setImmediate(() => this.broadcastToWindows("note-added", result.note));
           this._asyncVectorUpsert(result.note);
+          this._asyncMirrorWrite(result.note);
         }
         return result;
       }
@@ -595,6 +637,7 @@ class IPCHandlers {
       if (result?.success && result?.note) {
         setImmediate(() => this.broadcastToWindows("note-updated", result.note));
         this._asyncVectorUpsert(result.note);
+        this._asyncMirrorWrite(result.note);
       }
       return result;
     });
@@ -604,6 +647,7 @@ class IPCHandlers {
       if (result?.success) {
         setImmediate(() => this.broadcastToWindows("note-deleted", { id }));
         this._asyncVectorDelete(id);
+        this._asyncMirrorDelete(id);
       }
       return result;
     });
@@ -683,26 +727,40 @@ class IPCHandlers {
       if (result?.success && result?.folder) {
         setImmediate(() => {
           this.broadcastToWindows("folder-created", result.folder);
+          if (this._noteFilesEnabled) {
+            const markdownMirror = require("./markdownMirror");
+            markdownMirror.ensureFolder(result.folder.name);
+          }
         });
       }
       return result;
     });
 
     ipcMain.handle("db-delete-folder", async (event, id) => {
+      const folderName = this._noteFilesEnabled ? this._getFolderName(id) : null;
       const result = this.databaseManager.deleteFolder(id);
       if (result?.success) {
         setImmediate(() => {
           this.broadcastToWindows("folder-deleted", { id });
+          if (this._noteFilesEnabled && folderName) {
+            const markdownMirror = require("./markdownMirror");
+            markdownMirror.deleteFolder(folderName, "Personal");
+          }
         });
       }
       return result;
     });
 
     ipcMain.handle("db-rename-folder", async (event, id, name) => {
+      const oldName = this._noteFilesEnabled ? this._getFolderName(id) : null;
       const result = this.databaseManager.renameFolder(id, name);
       if (result?.success && result?.folder) {
         setImmediate(() => {
           this.broadcastToWindows("folder-renamed", result.folder);
+          if (this._noteFilesEnabled && oldName) {
+            const markdownMirror = require("./markdownMirror");
+            markdownMirror.renameFolder(oldName, name);
+          }
         });
       }
       return result;
@@ -4795,6 +4853,98 @@ class IPCHandlers {
         }
       }
       return { success: true };
+    });
+
+    // Note files (markdown mirror) handlers
+    ipcMain.handle("note-files-set-enabled", async (_event, enabled, customPath) => {
+      try {
+        this._noteFilesEnabled = !!enabled;
+        if (enabled) {
+          this._rebuildMirror(customPath || path.join(app.getPath("userData"), "notes"));
+        }
+        return { success: true };
+      } catch (error) {
+        debugLogger.error(
+          "Failed to set note-files enabled",
+          { error: error.message },
+          "note-files"
+        );
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("note-files-set-path", async (_event, newPath) => {
+      try {
+        if (!this._noteFilesEnabled) return { success: false, error: "Note files not enabled" };
+        this._rebuildMirror(newPath);
+        return { success: true };
+      } catch (error) {
+        debugLogger.error("Failed to set note-files path", { error: error.message }, "note-files");
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("note-files-rebuild", async () => {
+      try {
+        if (!this._noteFilesEnabled) return { success: false, error: "Note files not enabled" };
+        this._rebuildMirror();
+        return { success: true };
+      } catch (error) {
+        debugLogger.error("Failed to rebuild note files", { error: error.message }, "note-files");
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("note-files-get-default-path", async () => {
+      return path.join(app.getPath("userData"), "notes");
+    });
+
+    ipcMain.handle("show-note-file", async (_event, noteId) => {
+      try {
+        const markdownMirror = require("./markdownMirror");
+        const filePath = markdownMirror.getNotePath(noteId);
+        if (!filePath) return { success: false };
+        shell.showItemInFolder(filePath);
+        return { success: true };
+      } catch (error) {
+        debugLogger.error(
+          "Failed to show note file",
+          { noteId, error: error.message },
+          "note-files"
+        );
+        return { success: false };
+      }
+    });
+
+    ipcMain.handle("show-folder-in-explorer", async (_event, folderName) => {
+      try {
+        const markdownMirror = require("./markdownMirror");
+        const dirPath = markdownMirror.getFolderPath(folderName);
+        if (!dirPath) return { success: false };
+        await shell.openPath(dirPath);
+        return { success: true };
+      } catch (error) {
+        debugLogger.error(
+          "Failed to show folder",
+          { folderName, error: error.message },
+          "note-files"
+        );
+        return { success: false };
+      }
+    });
+
+    ipcMain.handle("note-files-pick-folder", async () => {
+      try {
+        const { dialog } = require("electron");
+        const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+        if (result.canceled || !result.filePaths.length) {
+          return { canceled: true };
+        }
+        return { canceled: false, path: result.filePaths[0] };
+      } catch (error) {
+        debugLogger.error("Failed to pick folder", { error: error.message }, "note-files");
+        return { canceled: true };
+      }
     });
   }
 
