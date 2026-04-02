@@ -55,6 +55,12 @@ export interface ActionItem {
   updated_at: string;
 }
 
+export interface GpuDevice {
+  index: number;
+  name: string;
+  vramMb: number;
+}
+
 export interface GpuInfo {
   hasNvidiaGpu: boolean;
   gpuName?: string;
@@ -496,6 +502,9 @@ declare global {
       }>;
 
       // CUDA GPU acceleration
+      listGpus?: () => Promise<GpuDevice[]>;
+      setGpuDeviceIndex?: (purpose: "transcription" | "intelligence", index: number) => Promise<{ success: boolean }>;
+      getGpuDeviceIndex?: (purpose: "transcription" | "intelligence") => Promise<string>;
       detectGpu: () => Promise<GpuInfo>;
       getCudaWhisperStatus: () => Promise<CudaWhisperStatus>;
       downloadCudaWhisperBinary: () => Promise<{ success: boolean; error?: string }>;

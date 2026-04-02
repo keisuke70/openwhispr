@@ -1385,6 +1385,16 @@
           "description": "Configura il tuo provider e la tua chiave API.",
           "title": "Passato a configurazione personalizzata"
         }
+      },
+      "gpuDevice": {
+        "title": "GPU trascrizione",
+        "description": "GPU usata per la trascrizione locale"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "GPU usata per l'elaborazione IA locale"
       }
     }
   },

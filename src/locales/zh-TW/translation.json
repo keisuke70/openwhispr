@@ -1385,6 +1385,16 @@
           "description": "設定你自己的供應商和 API Key。",
           "title": "已切換至自訂設定"
         }
+      },
+      "gpuDevice": {
+        "title": "轉錄 GPU",
+        "description": "用於本機語音辨識的 GPU"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "用於本機 AI 處理的 GPU"
       }
     }
   },

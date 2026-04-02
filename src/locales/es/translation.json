@@ -1385,6 +1385,16 @@
           "description": "Configura tu propio proveedor y clave API.",
           "title": "Cambiado a configuración personalizada"
         }
+      },
+      "gpuDevice": {
+        "title": "GPU de transcripción",
+        "description": "GPU usada para transcripción local"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "GPU usado para procesamiento IA local"
       }
     }
   },

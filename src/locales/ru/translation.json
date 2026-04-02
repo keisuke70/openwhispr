@@ -1385,6 +1385,16 @@
           "description": "Настройте собственного провайдера и API-ключ.",
           "title": "Переключено на пользовательскую настройку"
         }
+      },
+      "gpuDevice": {
+        "title": "GPU транскрипции",
+        "description": "GPU для локального распознавания речи"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "GPU для локальной обработки ИИ"
       }
     }
   },

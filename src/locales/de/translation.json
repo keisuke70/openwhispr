@@ -1385,6 +1385,16 @@
           "description": "Konfigurieren Sie Ihren eigenen Anbieter und API-Schlüssel.",
           "title": "Zu benutzerdefinierter Einrichtung gewechselt"
         }
+      },
+      "gpuDevice": {
+        "title": "Transkriptions-GPU",
+        "description": "GPU für lokale Spracherkennung"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "GPU für lokale KI-Verarbeitung"
       }
     }
   },

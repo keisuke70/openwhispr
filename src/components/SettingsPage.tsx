@@ -71,7 +71,7 @@ import { Skeleton } from "./ui/skeleton";
 import { Progress } from "./ui/progress";
 import { useToast } from "./ui/Toast";
 import { useTheme } from "../hooks/useTheme";
-import type { LocalTranscriptionProvider } from "../types/electron";
+import type { GpuDevice, LocalTranscriptionProvider } from "../types/electron";
 import logger from "../utils/logger";
 import { SettingsRow } from "./ui/SettingsSection";
 import { useUsage } from "../hooks/useUsage";
@@ -392,6 +392,7 @@ function TranscriptionSection({
           variant="settings"
         />
       )}
+      <GpuDeviceSelector purpose="transcription" />
     </div>
   );
 }
@@ -619,8 +620,60 @@ function AiModelsSection({
               setCustomReasoningApiKey={setCustomReasoningApiKey}
             />
           )}
+          <GpuDeviceSelector purpose="intelligence" />
         </>
       )}
+    </div>
+  );
+}
+
+function GpuDeviceSelector({ purpose }: { purpose: "transcription" | "intelligence" }) {
+  const { t } = useTranslation();
+  const [gpus, setGpus] = useState<GpuDevice[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState("0");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      window.electronAPI?.listGpus?.() ?? Promise.resolve([]),
+      window.electronAPI?.getGpuDeviceIndex?.(purpose) ?? Promise.resolve("0"),
+    ]).then(([gpuList, idx]) => {
+      setGpus(gpuList);
+      setSelectedIndex(idx);
+      setLoaded(true);
+    }).catch(() => setLoaded(true));
+  }, [purpose]);
+
+  if (!loaded || gpus.length < 2) return null;
+
+  return (
+    <div className="border-t border-border/40 pt-4 mt-4">
+      <SectionHeader
+        title={t(`settingsPage.${purpose}.gpuDevice.title`)}
+        description={t(`settingsPage.${purpose}.gpuDevice.description`)}
+      />
+      <SettingsPanel>
+        <SettingsPanelRow>
+          <div className="relative w-full">
+            <select
+              value={selectedIndex}
+              onChange={async (e) => {
+                const idx = e.target.value;
+                setSelectedIndex(idx);
+                await window.electronAPI?.setGpuDeviceIndex?.(purpose, Number(idx));
+              }}
+              className="w-full appearance-none rounded-md border border-border bg-background px-3 pr-10 py-2 text-sm"
+            >
+              {gpus.map((gpu) => (
+                <option key={gpu.index} value={String(gpu.index)}>
+                  GPU {gpu.index}: {gpu.name} ({Math.round(gpu.vramMb / 1024)}GB)
+                </option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </SettingsPanelRow>
+      </SettingsPanel>
     </div>
   );
 }
@@ -2770,6 +2823,7 @@ EOF`,
                 })()}
               </div>
             )}
+
           </div>
         );
 
@@ -3397,6 +3451,7 @@ EOF`,
                 </div>
               )}
             </div>
+
           </div>
         );
 

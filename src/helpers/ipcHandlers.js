@@ -119,6 +119,7 @@ class IPCHandlers {
     this._audioCleanupInterval = null;
     this._setupTextEditMonitor();
     this._setupAudioCleanup();
+    this._logDetectedGpus();
     this.setupHandlers();
 
     if (this.whisperManager?.serverManager) {
@@ -161,6 +162,16 @@ class IPCHandlers {
     if (this.textEditMonitor && this._textEditHandler) {
       this.textEditMonitor.removeListener("text-edited", this._textEditHandler);
       this._textEditHandler = null;
+    }
+  }
+
+  async _logDetectedGpus() {
+    const { listNvidiaGpus } = require("../utils/gpuDetection");
+    const gpus = await listNvidiaGpus();
+    if (gpus.length > 0) {
+      debugLogger.info("NVIDIA GPUs detected", { count: gpus.length, devices: gpus.map(g => `${g.name} (${g.vramMb}MB)`) }, "gpu");
+    } else {
+      debugLogger.debug("No NVIDIA GPUs detected", {}, "gpu");
     }
   }
 
@@ -983,6 +994,64 @@ class IPCHandlers {
     ipcMain.handle("detect-gpu", async () => {
       const { detectNvidiaGpu } = require("../utils/gpuDetection");
       return detectNvidiaGpu();
+    });
+
+    ipcMain.handle("list-gpus", async () => {
+      const { listNvidiaGpus } = require("../utils/gpuDetection");
+      return listNvidiaGpus();
+    });
+
+    ipcMain.handle("set-gpu-device-index", async (_event, purpose, index) => {
+      if (purpose !== "transcription" && purpose !== "intelligence") {
+        return { success: false };
+      }
+      const parsed = parseInt(index, 10);
+      if (isNaN(parsed) || parsed < 0) {
+        return { success: false };
+      }
+      const idx = String(parsed);
+      const key = purpose === "intelligence" ? "INTELLIGENCE_GPU_INDEX" : "TRANSCRIPTION_GPU_INDEX";
+      const oldIdx = process.env[key] || "0";
+      process.env[key] = idx;
+      this.environmentManager.saveAllKeysToEnvFile().catch((err) => {
+        debugLogger.error("Failed to persist GPU index", { error: err.message }, "gpu");
+      });
+
+      if (oldIdx !== idx) {
+        try {
+          if (purpose === "transcription" && this.whisperManager?.serverManager?.process) {
+            debugLogger.info("Restarting whisper-server for GPU change", { from: oldIdx, to: idx }, "gpu");
+            const modelName = this.whisperManager.currentServerModel;
+            await this.whisperManager.stopServer();
+            if (modelName) {
+              await this.whisperManager.startServer(modelName, { useCuda: !!process.env.WHISPER_CUDA_ENABLED });
+            }
+          }
+          if (purpose === "intelligence") {
+            const modelManager = require("./modelManagerBridge").default;
+            if (modelManager.serverManager?.process) {
+              debugLogger.info("Restarting llama-server for GPU change", { from: oldIdx, to: idx }, "gpu");
+              const modelPath = modelManager.serverManager.modelPath;
+              await modelManager.serverManager.stop();
+              if (modelPath) {
+                await modelManager.serverManager.start(modelPath);
+              }
+            }
+          }
+        } catch (err) {
+          debugLogger.error("Failed to restart server after GPU change", { error: err.message, purpose }, "gpu");
+        }
+      }
+
+      return { success: true };
+    });
+
+    ipcMain.handle("get-gpu-device-index", async (_event, purpose) => {
+      if (purpose !== "transcription" && purpose !== "intelligence") {
+        return "0";
+      }
+      const key = purpose === "intelligence" ? "INTELLIGENCE_GPU_INDEX" : "TRANSCRIPTION_GPU_INDEX";
+      return process.env[key] || "0";
     });
 
     ipcMain.handle("get-cuda-whisper-status", async () => {

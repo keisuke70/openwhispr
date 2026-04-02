@@ -1385,6 +1385,16 @@
           "description": "请配置你的服务商和 API Key。",
           "title": "已切换到自定义设置"
         }
+      },
+      "gpuDevice": {
+        "title": "转录 GPU",
+        "description": "用于本地语音识别的 GPU"
+      }
+    },
+    "intelligence": {
+      "gpuDevice": {
+        "title": "Intelligence GPU",
+        "description": "用于本地 AI 处理的 GPU"
       }
     }
   },
