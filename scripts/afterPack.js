@@ -1,12 +1,90 @@
 // electron-builder afterPack hook
-// Wraps the Linux Electron binary in a shell script that:
-// 1. Forces XWayland on Wayland sessions (overlay positioning requires X11)
-// 2. Reads user flags from ~/.config/open-whispr-flags.conf
+//
+// Runs after electron-builder assembles the output directory but before the
+// final installer (DMG/NSIS/AppImage) is created. Operates only on the output
+// directory — never touches source node_modules/.
+//
+// 1. Strips non-target platform/arch binaries from onnxruntime-node
+//    (saves 150–180 MB per build).
+// 2. Wraps the Linux binary in a shell script that forces XWayland and
+//    reads user flags from ~/.config/open-whispr-flags.conf.
 
 const fs = require("fs");
 const path = require("path");
+const { Arch } = require("app-builder-lib");
 
-exports.default = async function (context) {
+// ---------------------------------------------------------------------------
+// onnxruntime-node binary stripping
+// ---------------------------------------------------------------------------
+
+function stripOnnxruntimeBinaries(context) {
+  const platform = context.electronPlatformName; // darwin | linux | win32
+  const archName = Arch[context.arch]; // x64 | arm64 | ia32 | universal
+
+  // Resolve the resources directory inside the packed output
+  const resourcesDir =
+    platform === "darwin"
+      ? path.join(
+          context.appOutDir,
+          `${context.packager.appInfo.productFilename}.app`,
+          "Contents",
+          "Resources"
+        )
+      : path.join(context.appOutDir, "resources");
+
+  const onnxBinDir = path.join(
+    resourcesDir,
+    "app.asar.unpacked",
+    "node_modules",
+    "onnxruntime-node",
+    "bin",
+    "napi-v6"
+  );
+
+  if (!fs.existsSync(onnxBinDir)) return;
+
+  // For universal macOS builds keep both arm64 and x64 under darwin/
+  const keepArchs =
+    archName === "universal" ? ["arm64", "x64"] : [archName];
+
+  const platformDirs = fs.readdirSync(onnxBinDir);
+  let totalRemoved = 0;
+
+  for (const dir of platformDirs) {
+    const fullPath = path.join(onnxBinDir, dir);
+    if (!fs.statSync(fullPath).isDirectory()) continue;
+
+    if (dir !== platform) {
+      // Wrong platform — remove entirely
+      fs.rmSync(fullPath, { recursive: true, force: true });
+      totalRemoved++;
+      continue;
+    }
+
+    // Right platform — strip non-target architectures
+    const archDirs = fs.readdirSync(fullPath);
+    for (const arch of archDirs) {
+      const archPath = path.join(fullPath, arch);
+      if (!fs.statSync(archPath).isDirectory()) continue;
+      if (!keepArchs.includes(arch)) {
+        fs.rmSync(archPath, { recursive: true, force: true });
+        totalRemoved++;
+      }
+    }
+  }
+
+  if (totalRemoved > 0) {
+    console.log(
+      `  afterPack: stripped ${totalRemoved} non-target onnxruntime-node directories (keeping ${platform}/${keepArchs.join(",")})`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Linux XWayland wrapper
+// ---------------------------------------------------------------------------
+
+function wrapLinuxBinary(context) {
   if (context.electronPlatformName !== "linux") return;
 
   const appDir = context.appOutDir;
@@ -41,4 +119,13 @@ exec -a "$0" "$HERE/${binaryName}-app" "\${FLAGS[@]}" "$@"
 `;
 
   fs.writeFileSync(binaryPath, wrapper, { mode: 0o755 });
+}
+
+// ---------------------------------------------------------------------------
+// Main hook
+// ---------------------------------------------------------------------------
+
+exports.default = async function (context) {
+  stripOnnxruntimeBinaries(context);
+  wrapLinuxBinary(context);
 };
