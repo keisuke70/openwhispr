@@ -19,6 +19,7 @@ interface ChatMessageProps {
   content: string;
   isStreaming: boolean;
   toolCalls?: ToolCallInfo[];
+  onOpenNote?: (noteId: number) => void;
 }
 
 const NOTE_TOOLS = new Set(["create_note", "update_note", "get_note"]);
@@ -125,12 +126,22 @@ function ToolCallStep({ toolCall }: { toolCall: ToolCallInfo }) {
   );
 }
 
-function NoteCard({ noteId, title }: { noteId: number; title: string }) {
+function NoteCard({
+  noteId,
+  title,
+  onOpenNote,
+}: {
+  noteId: number;
+  title: string;
+  onOpenNote?: (noteId: number) => void;
+}) {
   const { t } = useTranslation();
 
   return (
     <button
-      onClick={() => window.electronAPI?.agentOpenNote?.(noteId)}
+      onClick={() =>
+        onOpenNote ? onOpenNote(noteId) : window.electronAPI?.agentOpenNote?.(noteId)
+      }
       className={cn(
         "flex items-center gap-2 w-full mt-2 px-2.5 py-2 rounded-md",
         "bg-primary/6 border border-primary/12",
@@ -174,7 +185,7 @@ function extractNoteCards(toolCalls?: ToolCallInfo[]): Array<{ noteId: number; t
   return cards;
 }
 
-export function ChatMessage({ role, content, isStreaming, toolCalls }: ChatMessageProps) {
+export function ChatMessage({ role, content, isStreaming, toolCalls, onOpenNote }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -258,7 +269,12 @@ export function ChatMessage({ role, content, isStreaming, toolCalls }: ChatMessa
         {noteCards.length > 0 && !isStreaming && (
           <div>
             {noteCards.map((card) => (
-              <NoteCard key={card.noteId} noteId={card.noteId} title={card.title} />
+              <NoteCard
+                key={card.noteId}
+                noteId={card.noteId}
+                title={card.title}
+                onOpenNote={onOpenNote}
+              />
             ))}
           </div>
         )}

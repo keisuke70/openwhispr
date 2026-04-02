@@ -887,15 +887,12 @@ async function startApp() {
     globeKeyManager.start();
 
     // After starting globe-listener, check if accessibility is granted.
-    // If not, notify both windows so they can prompt the user.
+    // If not, notify the control panel so it can prompt the user.
     const checkAndNotifyAccessibility = () => {
       if (!systemPreferences.isTrustedAccessibilityClient(false)) {
         debugLogger.info("[Accessibility] macOS accessibility not trusted — notifying renderers");
         if (isLiveWindow(windowManager.controlPanelWindow)) {
           windowManager.controlPanelWindow.webContents.send("accessibility-missing");
-        }
-        if (isLiveWindow(windowManager.mainWindow)) {
-          windowManager.mainWindow.webContents.send("accessibility-missing");
         }
       }
     };

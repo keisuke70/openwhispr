@@ -716,8 +716,6 @@ class WindowManager {
     } else {
       this.agentWindow.show();
     }
-
-    this.agentWindow.webContents.send("agent-start-recording");
   }
 
   hideAgentOverlay() {

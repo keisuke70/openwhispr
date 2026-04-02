@@ -6,9 +6,10 @@ import type { Message } from "./types";
 interface ChatMessagesProps {
   messages: Message[];
   emptyState?: React.ReactNode;
+  onOpenNote?: (noteId: number) => void;
 }
 
-export function ChatMessages({ messages, emptyState }: ChatMessagesProps) {
+export function ChatMessages({ messages, emptyState, onOpenNote }: ChatMessagesProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export function ChatMessages({ messages, emptyState }: ChatMessagesProps) {
                 content={msg.content}
                 isStreaming={msg.isStreaming}
                 toolCalls={msg.toolCalls}
+                onOpenNote={onOpenNote}
               />
             ))}
         </div>

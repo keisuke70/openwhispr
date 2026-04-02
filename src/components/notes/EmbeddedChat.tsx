@@ -5,6 +5,7 @@ import { cn } from "../lib/utils";
 import { ChatMessages } from "../chat/ChatMessages";
 import { ChatInput } from "../chat/ChatInput";
 import type { Message, AgentState } from "../chat/types";
+import { setActiveNoteId } from "../../stores/noteStore";
 
 export type EmbeddedChatMode = "hidden" | "floating" | "sidebar";
 
@@ -37,6 +38,10 @@ export default function EmbeddedChat({
   onCancel,
 }: EmbeddedChatProps) {
   const { t } = useTranslation();
+
+  const handleOpenNote = useCallback((noteId: number) => {
+    setActiveNoteId(noteId);
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -90,7 +95,7 @@ export default function EmbeddedChat({
   const chatContent = (
     <>
       {header}
-      <ChatMessages messages={messages} emptyState={<EmptyState />} />
+      <ChatMessages messages={messages} emptyState={<EmptyState />} onOpenNote={handleOpenNote} />
       <ChatInput
         agentState={agentState}
         partialTranscript=""

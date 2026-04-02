@@ -85,7 +85,7 @@ export default function NoteBottomBar({
   return (
     <div
       ref={containerRef}
-      className="absolute bottom-0 left-0 right-0 z-10 px-5 pb-4 pointer-events-none"
+      className="absolute bottom-0 left-0 right-0 z-10 px-5 pb-4 pt-3 pointer-events-none bg-background"
     >
       <div className="flex items-end gap-2 pointer-events-auto">
         <div
@@ -101,7 +101,6 @@ export default function NoteBottomBar({
                 "flex items-center gap-2 h-10 pl-3.5 pr-3 rounded-xl",
                 "bg-primary/6 dark:bg-primary/10",
                 "border border-primary/20 dark:border-primary/25",
-                "backdrop-blur-sm",
                 "transition-colors duration-150",
                 "hover:bg-primary/10 dark:hover:bg-primary/15"
               )}
@@ -141,7 +140,6 @@ export default function NoteBottomBar({
                 "flex items-center justify-center w-10 h-10 rounded-xl",
                 "bg-foreground/3 dark:bg-white/4",
                 "border border-border/20 dark:border-white/6",
-                "backdrop-blur-sm",
                 "text-foreground/30 dark:text-foreground/20",
                 "transition-all duration-200",
                 "hover:bg-foreground/6 dark:hover:bg-white/8",
