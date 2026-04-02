@@ -1534,7 +1534,8 @@
   "notes": {
     "sidebar": {
       "newNote": "Nueva nota",
-      "searchNotes": "Buscar notas"
+      "searchNotes": "Buscar notas",
+      "actions": "Acciones"
     },
     "folders": {
       "title": "Carpetas",
@@ -1647,6 +1648,9 @@
       "update": "Actualizar",
       "cancel": "Cancelar",
       "noActions": "Aún no hay acciones personalizadas",
+      "promptLabel": "Instrucción",
+      "emptyEditorTitle": "Seleccionar acción",
+      "emptyEditorDescription": "Elige una acción de la lista o crea una nueva",
       "runAction": "Ejecutar {{name}}",
       "selectAction": "Seleccionar acción",
       "done": "Listo",

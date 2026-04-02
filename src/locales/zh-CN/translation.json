@@ -1529,7 +1529,8 @@
   "notes": {
     "sidebar": {
       "newNote": "新建笔记",
-      "searchNotes": "搜索笔记"
+      "searchNotes": "搜索笔记",
+      "actions": "操作"
     },
     "folders": {
       "title": "文件夹",
@@ -1642,6 +1643,9 @@
       "update": "更新",
       "cancel": "取消",
       "noActions": "暂无自定义操作",
+      "promptLabel": "提示词",
+      "emptyEditorTitle": "选择操作",
+      "emptyEditorDescription": "从列表中选择一个操作或创建新操作",
       "runAction": "运行 {{name}}",
       "selectAction": "选择操作",
       "done": "完成",

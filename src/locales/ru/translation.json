@@ -1534,7 +1534,8 @@
   "notes": {
     "sidebar": {
       "newNote": "Новая заметка",
-      "searchNotes": "Поиск заметок"
+      "searchNotes": "Поиск заметок",
+      "actions": "Действия"
     },
     "folders": {
       "title": "Папки",
@@ -1647,6 +1648,9 @@
       "update": "Обновить",
       "cancel": "Отмена",
       "noActions": "Пользовательских действий пока нет",
+      "promptLabel": "Инструкция",
+      "emptyEditorTitle": "Выберите действие",
+      "emptyEditorDescription": "Выберите действие из списка или создайте новое",
       "runAction": "Запустить {{name}}",
       "selectAction": "Выбрать действие",
       "done": "Готово",

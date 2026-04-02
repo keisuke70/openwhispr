@@ -1534,7 +1534,8 @@
   "notes": {
     "sidebar": {
       "newNote": "Nova nota",
-      "searchNotes": "Pesquisar notas"
+      "searchNotes": "Pesquisar notas",
+      "actions": "Ações"
     },
     "folders": {
       "title": "Pastas",
@@ -1647,6 +1648,9 @@
       "update": "Atualizar",
       "cancel": "Cancelar",
       "noActions": "Nenhuma ação personalizada ainda",
+      "promptLabel": "Instrução",
+      "emptyEditorTitle": "Selecionar ação",
+      "emptyEditorDescription": "Escolha uma ação da lista ou crie uma nova",
       "runAction": "Executar {{name}}",
       "selectAction": "Selecionar ação",
       "done": "Concluído",

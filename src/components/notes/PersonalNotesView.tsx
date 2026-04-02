@@ -10,6 +10,7 @@ import {
   Check,
   SquarePen,
   Search,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -533,6 +534,18 @@ export default function PersonalNotesView({
                 {t("notes.sidebar.searchNotes")}
               </button>
             )}
+            <button
+              onClick={() => setShowActionManager(true)}
+              className={cn(
+                "flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs",
+                "text-muted-foreground/80 hover:text-foreground hover:bg-foreground/5",
+                "transition-colors duration-150",
+                "focus:outline-none focus-visible:ring-1 focus-visible:ring-ring/30"
+              )}
+            >
+              <Sparkles size={14} className="shrink-0" />
+              {t("notes.sidebar.actions")}
+            </button>
           </div>
 
           {/* Folders */}

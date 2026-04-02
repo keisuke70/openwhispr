@@ -1534,7 +1534,8 @@
   "notes": {
     "sidebar": {
       "newNote": "Neue Notiz",
-      "searchNotes": "Notizen suchen"
+      "searchNotes": "Notizen suchen",
+      "actions": "Aktionen"
     },
     "folders": {
       "title": "Ordner",
@@ -1647,6 +1648,9 @@
       "update": "Aktualisieren",
       "cancel": "Abbrechen",
       "noActions": "Noch keine benutzerdefinierten Aktionen",
+      "promptLabel": "Anweisung",
+      "emptyEditorTitle": "Aktion auswählen",
+      "emptyEditorDescription": "Wählen Sie eine Aktion aus der Liste oder erstellen Sie eine neue",
       "runAction": "{{name}} ausführen",
       "selectAction": "Aktion auswählen",
       "done": "Fertig",

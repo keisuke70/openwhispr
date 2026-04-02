@@ -1529,7 +1529,8 @@
   "notes": {
     "sidebar": {
       "newNote": "新增筆記",
-      "searchNotes": "搜尋筆記"
+      "searchNotes": "搜尋筆記",
+      "actions": "動作"
     },
     "folders": {
       "title": "資料夾",
@@ -1642,6 +1643,9 @@
       "update": "更新",
       "cancel": "取消",
       "noActions": "尚無自訂動作",
+      "promptLabel": "提示詞",
+      "emptyEditorTitle": "選擇動作",
+      "emptyEditorDescription": "從列表中選擇一個動作或建立新動作",
       "runAction": "執行 {{name}}",
       "selectAction": "選擇動作",
       "done": "完成",

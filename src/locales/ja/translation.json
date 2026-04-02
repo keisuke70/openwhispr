@@ -1462,7 +1462,8 @@
   "notes": {
     "sidebar": {
       "newNote": "新しいノート",
-      "searchNotes": "ノートを検索"
+      "searchNotes": "ノートを検索",
+      "actions": "アクション"
     },
     "editor": {
       "transcribe": "文字起こし",
@@ -1507,6 +1508,9 @@
       "update": "更新",
       "cancel": "キャンセル",
       "noActions": "カスタムアクションはまだありません",
+      "promptLabel": "プロンプト",
+      "emptyEditorTitle": "アクションを選択",
+      "emptyEditorDescription": "リストからアクションを選択するか、新しく作成してください",
       "runAction": "{{name}} を実行",
       "selectAction": "アクションを選択",
       "done": "完了",

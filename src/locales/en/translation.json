@@ -1643,7 +1643,8 @@
   "notes": {
     "sidebar": {
       "newNote": "New note",
-      "searchNotes": "Search notes"
+      "searchNotes": "Search notes",
+      "actions": "Actions"
     },
     "folders": {
       "title": "Folders",
@@ -1773,6 +1774,9 @@
       "update": "Update",
       "cancel": "Cancel",
       "noActions": "No custom actions yet",
+      "promptLabel": "Prompt",
+      "emptyEditorTitle": "Select an action",
+      "emptyEditorDescription": "Choose an action from the list or create a new one",
       "runAction": "Run {{name}}",
       "selectAction": "Select action",
       "builtin": {

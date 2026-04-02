@@ -1595,7 +1595,8 @@
   "notes": {
     "sidebar": {
       "newNote": "Nouvelle note",
-      "searchNotes": "Rechercher des notes"
+      "searchNotes": "Rechercher des notes",
+      "actions": "Actions"
     },
     "folders": {
       "title": "Dossiers",
@@ -1725,6 +1726,9 @@
       "update": "Mettre à jour",
       "cancel": "Annuler",
       "noActions": "Aucune action personnalisée pour l'instant",
+      "promptLabel": "Instruction",
+      "emptyEditorTitle": "Sélectionner une action",
+      "emptyEditorDescription": "Choisissez une action dans la liste ou créez-en une nouvelle",
       "runAction": "Exécuter {{name}}",
       "selectAction": "Sélectionner l'action",
       "builtin": {
