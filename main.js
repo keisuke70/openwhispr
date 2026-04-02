@@ -367,11 +367,6 @@ function initializeDeferredManagers() {
     });
   }
 
-  // Cache the system audio TCC status for the session via a quick probe.
-  if (audioTapManager?.isSupported()) {
-    audioTapManager.resolvePermission().catch(() => {});
-  }
-
   googleCalendarManager.start();
   meetingDetectionEngine.start();
 }
