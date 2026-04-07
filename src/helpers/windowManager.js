@@ -121,7 +121,7 @@ class WindowManager {
 
     const newSize = WINDOW_SIZES[sizeKey] || WINDOW_SIZES.BASE;
     const currentBounds = this.mainWindow.getBounds();
-    const position = this._panelStartPosition;
+    const position = sizeKey === "RECORDING" ? "center" : this._panelStartPosition;
 
     const display = screen.getDisplayNearestPoint({
       x: currentBounds.x + currentBounds.width / 2,
@@ -136,10 +136,9 @@ class WindowManager {
       newX = currentBounds.x;
       newY = currentBounds.y + currentBounds.height - newSize.height;
     } else if (position === "center") {
-      // Anchor bottom-center: expand symmetrically and upward
-      const centerX = currentBounds.x + currentBounds.width / 2;
-      newX = centerX - newSize.width / 2;
-      newY = currentBounds.y + currentBounds.height - newSize.height;
+      // Place on the display's bottom-center instead of expanding from the current overlay bounds.
+      newX = Math.round(workArea.x + (workArea.width - newSize.width) / 2);
+      newY = workArea.y + workArea.height - newSize.height - 8;
     } else {
       // bottom-right (default): anchor bottom-right corner, expand leftward and upward
       const bottomRightX = currentBounds.x + currentBounds.width;

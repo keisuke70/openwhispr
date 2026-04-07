@@ -110,6 +110,11 @@ class AudioManager {
     this.sttConfig = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+    this.onAudioLevel = null;
+    this._silenceCtx = null;
+    this._silenceAnalyser = null;
+    this._silenceInterval = null;
+    this._peakRms = null;
   }
 
   getWorkletBlobUrl() {
@@ -158,7 +163,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   getCustomDictionaryPrompt() {
     const words = getSettings().customDictionary;
-    return words.length > 0 ? words.join(", ") : null;
+    if (!Array.isArray(words) || words.length === 0) return null;
+
+    const agentName = (localStorage.getItem("agentName") || "").trim().toLowerCase();
+    const filteredWords = words
+      .map((word) => (typeof word === "string" ? word.trim() : ""))
+      .filter(Boolean)
+      .filter((word) => word.toLowerCase() !== agentName);
+
+    return filteredWords.length > 0 ? filteredWords.join(", ") : null;
   }
 
   setCallbacks({
@@ -167,12 +180,58 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onTranscriptionComplete,
     onPartialTranscript,
     onStreamingCommit,
+    onAudioLevel = null,
   }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onPartialTranscript = onPartialTranscript;
     this.onStreamingCommit = onStreamingCommit;
+    this.onAudioLevel = onAudioLevel;
+  }
+
+  startAudioLevelMonitoring(stream) {
+    this.stopAudioLevelMonitoring();
+
+    try {
+      this._silenceCtx = new AudioContext();
+      this._silenceAnalyser = this._silenceCtx.createAnalyser();
+      this._silenceAnalyser.fftSize = 2048;
+      const sourceNode = this._silenceCtx.createMediaStreamSource(stream);
+      sourceNode.connect(this._silenceAnalyser);
+      this._peakRms = 0;
+      const dataArray = new Uint8Array(this._silenceAnalyser.fftSize);
+
+      this._silenceInterval = setInterval(() => {
+        this._silenceAnalyser.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = (dataArray[i] - 128) / 128;
+          sum += v * v;
+        }
+        const rms = Math.sqrt(sum / dataArray.length);
+        if (rms > this._peakRms) this._peakRms = rms;
+
+        const db = 20 * Math.log10(rms + 1e-4);
+        const normalizedLevel = Math.max(0, Math.min(1, (db + 55) / 35));
+        this.onAudioLevel?.(normalizedLevel);
+      }, 100);
+    } catch (e) {
+      logger.warn("Silence detection setup failed, skipping", { error: e.message }, "audio");
+      this._peakRms = 1;
+      this.onAudioLevel?.(0);
+    }
+  }
+
+  stopAudioLevelMonitoring() {
+    if (this._silenceInterval) {
+      clearInterval(this._silenceInterval);
+      this._silenceInterval = null;
+    }
+    this._silenceCtx?.close().catch(() => {});
+    this._silenceCtx = null;
+    this._silenceAnalyser = null;
+    this.onAudioLevel?.(0);
   }
 
   setSkipReasoning(skip) {
@@ -301,29 +360,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
       }
 
-      // Silence detection: observe audio energy via AnalyserNode
-      try {
-        this._silenceCtx = new AudioContext();
-        this._silenceAnalyser = this._silenceCtx.createAnalyser();
-        this._silenceAnalyser.fftSize = 2048;
-        const sourceNode = this._silenceCtx.createMediaStreamSource(micStream);
-        sourceNode.connect(this._silenceAnalyser);
-        this._peakRms = 0;
-        const dataArray = new Uint8Array(this._silenceAnalyser.fftSize);
-        this._silenceInterval = setInterval(() => {
-          this._silenceAnalyser.getByteTimeDomainData(dataArray);
-          let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            const v = (dataArray[i] - 128) / 128;
-            sum += v * v;
-          }
-          const rms = Math.sqrt(sum / dataArray.length);
-          if (rms > this._peakRms) this._peakRms = rms;
-        }, 100);
-      } catch (e) {
-        logger.warn("Silence detection setup failed, skipping", { error: e.message }, "audio");
-        this._peakRms = 1; // assume speech if detection fails
-      }
+      this.startAudioLevelMonitoring(micStream);
 
       this.mediaRecorder = new MediaRecorder(micStream);
       this.audioChunks = [];
@@ -335,14 +372,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       };
 
       this.mediaRecorder.onstop = async () => {
-        // Clean up silence detection
-        if (this._silenceInterval) {
-          clearInterval(this._silenceInterval);
-          this._silenceInterval = null;
-        }
-        this._silenceCtx?.close().catch(() => {});
-        this._silenceCtx = null;
-        this._silenceAnalyser = null;
+        this.stopAudioLevelMonitoring();
 
         this.isRecording = false;
         this.isProcessing = true;
@@ -415,6 +445,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this.isProcessing = false;
         this.audioChunks = [];
         this.recordingStartTime = null;
+        this.stopAudioLevelMonitoring();
         this.onStateChange?.({ isRecording: false, isProcessing: false });
       };
 
@@ -432,6 +463,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   cancelProcessing() {
     if (this.isProcessing) {
       this.isProcessing = false;
+      this.stopAudioLevelMonitoring();
       this.onStateChange?.({ isRecording: false, isProcessing: false });
       return true;
     }
@@ -1284,7 +1316,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   async processWithOpenAIAPI(audioBlob, metadata = {}) {
     const timings = {};
     const apiSettings = getSettings();
-    const language = getBaseLanguageCode(apiSettings.preferredLanguage);
+    const requestedLanguage = getBaseLanguageCode(apiSettings.preferredLanguage);
+    const language = metadata.forceLanguageAuto === true ? undefined : requestedLanguage;
     const allowLocalFallback = apiSettings.allowLocalFallback;
     const fallbackModel = apiSettings.fallbackWhisperModel || "base";
 
@@ -1366,7 +1399,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         formData.append("prompt", dictionaryPrompt);
       }
 
-      const shouldStream = this.shouldStreamTranscription(model, provider);
+      const shouldStream =
+        metadata.forceNonStreaming === true ? false : this.shouldStreamTranscription(model, provider);
       if (shouldStream) {
         formData.append("stream", "true");
       }
@@ -1556,6 +1590,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
         return { success: true, text, rawText, source, timings };
       } else {
+        if (
+          provider === "openai" &&
+          language &&
+          metadata.forceLanguageAuto !== true
+        ) {
+          logger.info(
+            "Transcription returned empty with explicit language, retrying with auto language detection",
+            {
+              model,
+              provider,
+              language,
+            },
+            "transcription"
+          );
+          return this.processWithOpenAIAPI(audioBlob, {
+            ...metadata,
+            forceLanguageAuto: true,
+          });
+        }
+
         // Log at info level so it shows without debug mode
         logger.info(
           "Transcription returned empty - check audio input",
@@ -2049,6 +2103,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
       }
 
+      this.startAudioLevelMonitoring(stream);
+
       // Start fallback recorder in case streaming produces no results
       try {
         this.streamingFallbackChunks = [];
@@ -2439,13 +2495,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "streaming"
       );
       try {
-        const batchResult = await this.processWithOpenWhisprCloud(fallbackBlob, {
-          durationSeconds,
-        });
+        const { cloudTranscriptionMode } = getSettings();
+        const batchResult =
+          cloudTranscriptionMode === "byok"
+            ? await this.processWithOpenAIAPI(fallbackBlob, {
+                durationSeconds,
+                forceNonStreaming: true,
+              })
+            : await this.processWithOpenWhisprCloud(fallbackBlob, {
+                durationSeconds,
+              });
         if (batchResult?.text) {
           finalText = batchResult.text;
           usedBatchFallback = true;
-          logger.info("Batch fallback succeeded", { textLength: finalText.length }, "streaming");
+          logger.info(
+            "Batch fallback succeeded",
+            {
+              textLength: finalText.length,
+              mode: cloudTranscriptionMode,
+            },
+            "streaming"
+          );
         }
       } catch (fallbackErr) {
         logger.error("Batch fallback failed", { error: fallbackErr.message }, "streaming");
@@ -2563,6 +2633,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     this.isStreaming = false;
+    this.stopAudioLevelMonitoring();
   }
 
   cleanupStreamingListeners() {
@@ -2614,6 +2685,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onTranscriptionComplete = null;
     this.onPartialTranscript = null;
     this.onStreamingCommit = null;
+    this.onAudioLevel = null;
     if (this._onApiKeyChanged) {
       window.removeEventListener("api-key-changed", this._onApiKeyChanged);
     }

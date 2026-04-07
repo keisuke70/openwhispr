@@ -47,6 +47,100 @@ const VoiceWaveIndicator = ({ isListening }) => {
   );
 };
 
+const METER_PROFILE = [
+  0.14, 0.18, 0.24, 0.32, 0.42, 0.56, 0.72, 0.88, 1, 0.88, 0.72, 0.56, 0.42, 0.32, 0.24, 0.18,
+  0.14,
+];
+
+const RecordingMeter = ({ audioLevel }) => {
+  const [displayLevel, setDisplayLevel] = useState(0);
+  const [phase, setPhase] = useState(0);
+
+  useEffect(() => {
+    setDisplayLevel((current) => {
+      if (audioLevel > current) {
+        return current + (audioLevel - current) * 0.7;
+      }
+      return current + (audioLevel - current) * 0.24;
+    });
+  }, [audioLevel]);
+
+  useEffect(() => {
+    let frameId;
+    let lastTime = performance.now();
+
+    const tick = (now) => {
+      const delta = now - lastTime;
+      lastTime = now;
+      setPhase((current) => current + delta * 0.01);
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  const activeLevel = Math.max(0, Math.min(1, Math.pow(displayLevel, 0.72)));
+
+  return (
+    <div className="flex h-10 items-end gap-1 overflow-hidden rounded-full bg-white/[0.05] px-3 py-2">
+      {METER_PROFILE.map((profile, i) => {
+        const motion = ((Math.sin(phase + i * 0.72) + 1) / 2) * activeLevel;
+        const targetHeight = 0.16 + activeLevel * profile * 0.66 + motion * 0.18;
+        const activeOpacity = 0.22 + activeLevel * (0.34 + profile * 0.36) + motion * 0.08;
+
+        return (
+          <div
+            key={i}
+            className="min-w-0 flex-1 rounded-full bg-emerald-400/80"
+            style={{
+              height: `${Math.min(100, targetHeight * 100)}%`,
+              opacity: Math.min(1, activeOpacity),
+              transition: "height 70ms ease-out, opacity 70ms ease-out",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
+const RecordingPanel = ({ isRecording, isProcessing, audioLevel, elapsedSeconds, onCancel, t }) => {
+  return (
+    <div
+      className="flex w-[312px] max-w-[312px] items-center gap-2 rounded-full border border-white/12 bg-black/82 px-2.5 py-2 shadow-2xl backdrop-blur-2xl"
+      style={{ boxShadow: "0 18px 42px rgba(0, 0, 0, 0.32)" }}
+    >
+      <div
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+          isProcessing ? "bg-sky-500/20 text-sky-100" : "bg-red-500 text-white"
+        }`}
+      >
+        {isProcessing ? <VoiceWaveIndicator isListening={true} /> : <LoadingDots />}
+      </div>
+
+      <div className="min-w-0 flex flex-1 items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <RecordingMeter audioLevel={audioLevel} />
+        </div>
+        <div className="shrink-0 text-[11px] tabular-nums text-white/58">
+          {`${String(Math.floor(elapsedSeconds / 60)).padStart(2, "0")}:${String(
+            elapsedSeconds % 60
+          ).padStart(2, "0")}`}
+        </div>
+      </div>
+
+      <button
+        aria-label={isRecording ? t("app.buttons.cancelRecording") : t("app.buttons.cancelProcessing")}
+        onClick={onCancel}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/88 transition-colors duration-150 hover:bg-white/14"
+      >
+        <X size={14} strokeWidth={2.4} />
+      </button>
+    </div>
+  );
+};
+
 // Tooltip Component
 const Tooltip = ({ children, content, emoji, align = "center" }) => {
   const [isVisible, setIsVisible] = useState(false);
@@ -89,7 +183,7 @@ export default function App() {
 
   const [dragStartPos, setDragStartPos] = useState(null);
   const [hasDragged, setHasDragged] = useState(false);
-
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   // Floating icon auto-hide setting (read from store, synced via IPC)
   const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
   const panelStartPosition = useSettingsStore((s) => s.panelStartPosition);
@@ -169,9 +263,21 @@ export default function App() {
     }
   }, [isCommandMenuOpen, isHovered, toastCount, setWindowInteractivity]);
 
+  const handleDictationToggle = React.useCallback(() => {
+    setIsCommandMenuOpen(false);
+    setWindowInteractivity(false);
+  }, [setWindowInteractivity]);
+
+  const { isRecording, isProcessing, audioLevel, toggleListening, cancelRecording, cancelProcessing } =
+    useAudioRecording(toast, {
+      onToggle: handleDictationToggle,
+    });
+
   useEffect(() => {
     const resizeWindow = () => {
-      if (isCommandMenuOpen && toastCount > 0) {
+      if (isRecording) {
+        window.electronAPI?.resizeMainWindow?.("RECORDING");
+      } else if (isCommandMenuOpen && toastCount > 0) {
         window.electronAPI?.resizeMainWindow?.("EXPANDED");
       } else if (isCommandMenuOpen) {
         window.electronAPI?.resizeMainWindow?.("WITH_MENU");
@@ -182,17 +288,21 @@ export default function App() {
       }
     };
     resizeWindow();
-  }, [isCommandMenuOpen, toastCount]);
+  }, [isCommandMenuOpen, toastCount, isRecording]);
 
-  const handleDictationToggle = React.useCallback(() => {
-    setIsCommandMenuOpen(false);
-    setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
+  useEffect(() => {
+    if (!isRecording) {
+      setElapsedSeconds(0);
+      return;
+    }
 
-  const { isRecording, isProcessing, toggleListening, cancelRecording, cancelProcessing } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
+    const start = Date.now();
+    const id = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - start) / 1000));
+    }, 250);
+
+    return () => clearInterval(id);
+  }, [isRecording]);
 
   // Sync auto-hide from main process — setState directly to avoid IPC echo
   useEffect(() => {
@@ -310,19 +420,19 @@ export default function App() {
   };
 
   const micProps = getMicButtonProps();
+  const showExpandedRecorder = isRecording;
+  const containerPositionClass = showExpandedRecorder
+    ? "inset-x-0 flex justify-center"
+    : panelStartPosition === "bottom-left"
+      ? "left-1"
+      : panelStartPosition === "center"
+        ? "left-1/2 -translate-x-1/2"
+        : "right-1";
 
   return (
     <div className="dictation-window">
       {/* Voice button - position determined by panelStartPosition setting */}
-      <div
-        className={`fixed bottom-1 z-50 ${
-          panelStartPosition === "bottom-left"
-            ? "left-1"
-            : panelStartPosition === "center"
-              ? "left-1/2 -translate-x-1/2"
-              : "right-1"
-        }`}
-      >
+      <div className={`fixed bottom-1 z-50 ${containerPositionClass}`}>
         <div
           className="relative flex items-center gap-2"
           onMouseEnter={() => {
@@ -336,6 +446,17 @@ export default function App() {
             }
           }}
         >
+          {showExpandedRecorder ? (
+            <RecordingPanel
+              isRecording={isRecording}
+              isProcessing={isProcessing}
+              audioLevel={audioLevel}
+              elapsedSeconds={elapsedSeconds}
+              onCancel={() => (isRecording ? cancelRecording() : cancelProcessing())}
+              t={t}
+            />
+          ) : (
+            <>
           {(isRecording || isProcessing) && isHovered && (
             <button
               aria-label={
@@ -484,6 +605,8 @@ export default function App() {
                 {t("app.commandMenu.hideForNow")}
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
       </div>
