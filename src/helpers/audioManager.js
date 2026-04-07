@@ -59,6 +59,8 @@ const STREAMING_PROVIDERS = {
     onPartial: (cb) => window.electronAPI.onDictationRealtimePartial(cb),
     onFinal: (cb) => window.electronAPI.onDictationRealtimeFinal(cb),
     onError: (cb) => window.electronAPI.onDictationRealtimeError(cb),
+    onConnectionStateChange: (cb) =>
+      window.electronAPI.onDictationRealtimeConnectionState?.(cb) || (() => {}),
     onSessionEnd: (cb) => window.electronAPI.onDictationRealtimeSessionEnd(cb),
   },
 };
@@ -105,6 +107,7 @@ class AudioManager {
     this.stopRequestedDuringStreamingStart = false;
     this.streamingFallbackRecorder = null;
     this.streamingFallbackChunks = [];
+    this.streamingConnectionState = "disconnected";
     this.skipReasoning = false;
     this.context = "dictation";
     this.sttConfig = null;
@@ -2185,6 +2188,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         }
       });
 
+      const connectionStateCleanup = provider.onConnectionStateChange?.((data) => {
+        const prevState = this.streamingConnectionState;
+        this.streamingConnectionState = data?.state || "disconnected";
+
+        if (this.streamingConnectionState === "reconnecting") {
+          this.streamingPartialText = "";
+          this.onPartialTranscript?.("");
+          logger.warn(
+            "Streaming provider reconnecting",
+            {
+              attempt: data?.attempt,
+              maxAttempts: data?.maxAttempts,
+              delayMs: data?.delayMs,
+              error: data?.error,
+            },
+            "streaming"
+          );
+        } else if (
+          this.streamingConnectionState === "connected" &&
+          prevState === "reconnecting"
+        ) {
+          logger.info("Streaming provider reconnected", {}, "streaming");
+        }
+      });
+
       const sessionEndCleanup = provider.onSessionEnd((data) => {
         logger.debug("Streaming session ended", data, "streaming");
         if (data.text) {
@@ -2192,7 +2220,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         }
       });
 
-      this.streamingCleanupFns = [partialCleanup, finalCleanup, errorCleanup, sessionEndCleanup];
+      this.streamingCleanupFns = [
+        partialCleanup,
+        finalCleanup,
+        errorCleanup,
+        connectionStateCleanup,
+        sessionEndCleanup,
+      ];
       this.isRecording = true;
       this.recordingStartTime = Date.now();
       this.onStateChange?.({ isRecording: true, isProcessing: false, isStreaming: true });
@@ -2647,6 +2681,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.streamingCleanupFns = [];
     this.streamingFinalText = "";
     this.streamingPartialText = "";
+    this.streamingConnectionState = "disconnected";
     this.streamingTextResolve = null;
     clearTimeout(this.streamingTextDebounce);
     this.streamingTextDebounce = null;

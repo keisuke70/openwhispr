@@ -512,6 +512,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
     "dictation-realtime-error",
     (callback) => (_event, data) => callback(data)
   ),
+  onDictationRealtimeConnectionState: registerListener(
+    "dictation-realtime-connection-state",
+    (callback) => (_event, data) => callback(data)
+  ),
   onDictationRealtimeSessionEnd: registerListener(
     "dictation-realtime-session-end",
     (callback) => (_event, data) => callback(data)

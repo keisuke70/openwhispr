@@ -1323,6 +1323,16 @@ declare global {
       onDictationRealtimePartial?: (callback: (text: string) => void) => () => void;
       onDictationRealtimeFinal?: (callback: (text: string) => void) => () => void;
       onDictationRealtimeError?: (callback: (error: string) => void) => () => void;
+      onDictationRealtimeConnectionState?: (
+        callback: (data: {
+          state: "connecting" | "connected" | "reconnecting" | "failed" | "disconnected";
+          attempt?: number;
+          maxAttempts?: number;
+          delayMs?: number;
+          error?: string;
+          reconnected?: boolean;
+        }) => void
+      ) => () => void;
       onDictationRealtimeSessionEnd?: (callback: (data: { text: string }) => void) => () => void;
 
       // Google Calendar event listeners

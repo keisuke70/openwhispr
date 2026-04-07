@@ -3048,6 +3048,8 @@ class IPCHandlers {
       streaming.onError = (err) => event.sender.send("dictation-realtime-error", err.message);
       streaming.onSessionEnd = (data) =>
         event.sender.send("dictation-realtime-session-end", data || {});
+      streaming.onConnectionStateChange = (data) =>
+        event.sender.send("dictation-realtime-connection-state", data || {});
     };
 
     const connectDictationStreaming = async (event, options) => {
