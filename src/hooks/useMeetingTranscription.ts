@@ -12,6 +12,7 @@ export interface TranscriptSegment {
 
 interface UseMeetingTranscriptionReturn {
   isRecording: boolean;
+  audioLevel: number;
   transcript: string;
   partialTranscript: string;
   segments: TranscriptSegment[];
@@ -25,6 +26,7 @@ interface UseMeetingTranscriptionReturn {
 
 const MEETING_AUDIO_BUFFER_SIZE = 800;
 const MEETING_STOP_FLUSH_TIMEOUT_MS = 50;
+const MEETING_AUDIO_LEVEL_INTERVAL_MS = 80;
 
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
 
@@ -109,10 +111,14 @@ registerProcessor("meeting-pcm-processor", MeetingPCMProcessor);
 
 const getMeetingMicConstraints = async (): Promise<MediaStreamConstraints> => {
   const { preferBuiltInMic, selectedMicDeviceId } = getSettings();
+  // Keep notes/meeting mic capture aligned with regular dictation on Windows.
+  // Browser audio processing, especially echo cancellation, can push some devices
+  // into degraded communication modes or suppress near-field speech too aggressively.
   const micProcessing = {
-    echoCancellation: true,
+    echoCancellation: false,
     noiseSuppression: false,
     autoGainControl: false,
+    channelCount: 2,
   };
 
   if (preferBuiltInMic) {
@@ -156,11 +162,13 @@ const createAudioPipeline = async ({
   context,
   label,
   onChunk,
+  onLevel,
 }: {
   stream: MediaStream;
   context: AudioContext;
   label: string;
   onChunk: (chunk: ArrayBuffer) => void;
+  onLevel?: (level: number) => void;
 }) => {
   if (context.state === "suspended") {
     await context.resume();
@@ -171,19 +179,32 @@ const createAudioPipeline = async ({
   const source = context.createMediaStreamSource(stream);
   const processor = new AudioWorkletNode(context, "meeting-pcm-processor");
   let chunkCount = 0;
+  let lastLevelEmitMs = 0;
 
   processor.port.onmessage = (event) => {
     const chunk = event.data;
     if (!(chunk instanceof ArrayBuffer)) return;
 
-    if (chunkCount < 10 || chunkCount % 50 === 0) {
-      const samples = new Int16Array(chunk);
-      let maxAmplitude = 0;
-      for (let i = 0; i < samples.length; i++) {
-        const normalized = Math.abs(samples[i]) / 0x7fff;
-        if (normalized > maxAmplitude) maxAmplitude = normalized;
-      }
+    const samples = new Int16Array(chunk);
+    let sum = 0;
+    let maxAmplitude = 0;
 
+    for (let i = 0; i < samples.length; i++) {
+      const normalized = Math.abs(samples[i]) / 0x7fff;
+      sum += normalized * normalized;
+      if (normalized > maxAmplitude) maxAmplitude = normalized;
+    }
+
+    const now = performance.now();
+    if (onLevel && now - lastLevelEmitMs >= MEETING_AUDIO_LEVEL_INTERVAL_MS) {
+      lastLevelEmitMs = now;
+      const rms = Math.sqrt(sum / Math.max(1, samples.length));
+      const db = 20 * Math.log10(rms + 1e-4);
+      const normalizedLevel = Math.max(0, Math.min(1, (db + 55) / 35));
+      onLevel(normalizedLevel);
+    }
+
+    if (chunkCount < 10 || chunkCount % 50 === 0) {
       logger.debug(
         `${label} audio chunk`,
         { maxAmplitude: maxAmplitude.toFixed(6), samples: samples.length },
@@ -233,6 +254,7 @@ let segmentCounter = 0;
 
 export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const [isRecording, setIsRecording] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -252,6 +274,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
   const pendingCleanupRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cleanup = useCallback(async () => {
+    setAudioLevel(0);
     await flushAndDisconnectProcessor(micProcessorRef.current);
     micProcessorRef.current = null;
 
@@ -282,6 +305,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     isRecordingRef.current = false;
     isStartingRef.current = false;
     setIsRecording(false);
+    setAudioLevel(0);
 
     await cleanup();
 
@@ -351,6 +375,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
     setSegments([]);
     setMicPartial("");
     setSystemPartial("");
+    setAudioLevel(0);
     setError(null);
 
     // Set recording state immediately for instant UI feedback
@@ -484,6 +509,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
           stream: micResult,
           context: micContext,
           label: "Meeting mic",
+          onLevel: setAudioLevel,
           onChunk: (chunk) => {
             if (!isRecordingRef.current) return;
             if (socketReady) {
@@ -581,6 +607,7 @@ export function useMeetingTranscription(): UseMeetingTranscriptionReturn {
 
   return {
     isRecording,
+    audioLevel,
     transcript,
     partialTranscript,
     segments,

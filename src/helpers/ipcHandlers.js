@@ -13,6 +13,16 @@ const OpenAIRealtimeStreaming = require("./openaiRealtimeStreaming");
 const AudioStorageManager = require("./audioStorage");
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
+const OPENAI_REALTIME_INITIAL_RETRY_DELAYS_MS = [400, 1200, 2500];
+const RETRIABLE_OPENAI_REALTIME_ERROR_CODES = new Set([
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ECONNREFUSED",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+]);
 
 // Debounce delay: wait for user to stop typing before processing corrections
 const AUTO_LEARN_DEBOUNCE_MS = 1500;
@@ -26,6 +36,70 @@ const AUDIO_MIME_TYPES = {
   flac: "audio/flac",
   aac: "audio/aac",
 };
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableOpenAIRealtimeConnectError(error) {
+  if (!error) return false;
+
+  const code = typeof error.code === "string" ? error.code.toUpperCase() : "";
+  const message = String(error.message || error).toUpperCase();
+
+  if (RETRIABLE_OPENAI_REALTIME_ERROR_CODES.has(code)) {
+    return true;
+  }
+
+  return (
+    Array.from(RETRIABLE_OPENAI_REALTIME_ERROR_CODES).some((candidate) =>
+      message.includes(candidate)
+    ) ||
+    (message.includes("GETADDRINFO") && message.includes("API.OPENAI.COM")) ||
+    message.includes("CONNECTION TIMEOUT")
+  );
+}
+
+async function connectOpenAIRealtimeWithRetry(streaming, connectOptions, metadata = {}) {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= OPENAI_REALTIME_INITIAL_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      if (attempt > 0) {
+        debugLogger.debug("Retrying OpenAI Realtime initial connection", {
+          ...metadata,
+          attempt: attempt + 1,
+          totalAttempts: OPENAI_REALTIME_INITIAL_RETRY_DELAYS_MS.length + 1,
+        });
+      }
+
+      await streaming.connect(connectOptions);
+      return;
+    } catch (error) {
+      lastError = error;
+      const retryable = isRetriableOpenAIRealtimeConnectError(error);
+      const delayMs = OPENAI_REALTIME_INITIAL_RETRY_DELAYS_MS[attempt];
+
+      debugLogger.warn("OpenAI Realtime initial connection failed", {
+        ...metadata,
+        attempt: attempt + 1,
+        totalAttempts: OPENAI_REALTIME_INITIAL_RETRY_DELAYS_MS.length + 1,
+        retryable,
+        delayMs: delayMs ?? null,
+        code: error?.code,
+        error: error?.message || String(error),
+      });
+
+      if (!retryable || delayMs == null) {
+        throw error;
+      }
+
+      await delay(delayMs);
+    }
+  }
+
+  throw lastError || new Error("OpenAI Realtime initial connection failed");
+}
 
 function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
   const boundary = `----OpenWhispr${Date.now()}`;
@@ -2877,7 +2951,9 @@ class IPCHandlers {
       }
 
       await Promise.all(
-        pairs.map(({ ref, secret }) => this[ref].connect({ apiKey: secret, ...connectOpts }))
+        pairs.map(({ ref, secret, source }) =>
+          connectOpenAIRealtimeWithRetry(this[ref], { apiKey: secret, ...connectOpts }, { source })
+        )
       );
 
       return win;
@@ -3052,21 +3128,84 @@ class IPCHandlers {
         event.sender.send("dictation-realtime-connection-state", data || {});
     };
 
-    const connectDictationStreaming = async (event, options) => {
-      if (this._dictationStreaming) {
-        await this._dictationStreaming.disconnect().catch(() => {});
-        this._dictationStreaming = null;
-      }
-      const isCloud = options.mode !== "byok";
-      const apiKey = await fetchRealtimeToken(event, { mode: options.mode });
-      const streaming = new OpenAIRealtimeStreaming();
-      setupDictationCallbacks(streaming, event);
-      await streaming.connect({
-        apiKey,
+    let dictationStreamingConnectPromise = null;
+    let dictationStreamingStopPromise = null;
+    let dictationStreamingConfigKey = null;
+
+    const getDictationStreamingConfigKey = (options = {}) =>
+      JSON.stringify({
+        mode: options.mode || "openwhispr",
         model: options.model || "gpt-4o-mini-transcribe",
-        preconfigured: isCloud,
       });
-      this._dictationStreaming = streaming;
+
+    const connectDictationStreaming = async (event, options) => {
+      const configKey = getDictationStreamingConfigKey(options);
+
+      if (dictationStreamingStopPromise) {
+        await dictationStreamingStopPromise.catch(() => {});
+      }
+
+      if (dictationStreamingConnectPromise) {
+        debugLogger.debug("Dictation realtime connect waiting for in-flight connect", {
+          configKey,
+        });
+        try {
+          await dictationStreamingConnectPromise;
+        } catch (error) {
+          debugLogger.warn("Dictation realtime previous connect failed before reuse", {
+            configKey,
+            error: error.message,
+          });
+        }
+      }
+
+      if (this._dictationStreaming?.isConnected && dictationStreamingConfigKey === configKey) {
+        setupDictationCallbacks(this._dictationStreaming, event);
+        return { reused: true };
+      }
+
+      dictationStreamingConnectPromise = (async () => {
+        if (this._dictationStreaming) {
+          await this._dictationStreaming.disconnect().catch(() => {});
+          this._dictationStreaming = null;
+          dictationStreamingConfigKey = null;
+        }
+
+        const isCloud = options.mode !== "byok";
+        const apiKey = await fetchRealtimeToken(event, { mode: options.mode });
+        const streaming = new OpenAIRealtimeStreaming();
+        this._dictationStreaming = streaming;
+        setupDictationCallbacks(streaming, event);
+
+        try {
+          await connectOpenAIRealtimeWithRetry(
+            streaming,
+            {
+              apiKey,
+              model: options.model || "gpt-4o-mini-transcribe",
+              preconfigured: isCloud,
+            },
+            { source: "dictation" }
+          );
+          dictationStreamingConfigKey = configKey;
+          return { reused: false };
+        } catch (error) {
+          if (this._dictationStreaming === streaming) {
+            await streaming.disconnect().catch(() => {});
+            this._dictationStreaming = null;
+          }
+          dictationStreamingConfigKey = null;
+          throw error;
+        }
+      })();
+
+      try {
+        return await dictationStreamingConnectPromise;
+      } finally {
+        if (dictationStreamingConnectPromise) {
+          dictationStreamingConnectPromise = null;
+        }
+      }
     };
 
     // Pre-warm: fetch tokens + connect WebSockets before user hits record
@@ -3269,6 +3408,7 @@ class IPCHandlers {
     ipcMain.handle("dictation-realtime-start", async (event, options = {}) => {
       try {
         if (!this._dictationStreaming?.isConnected) await connectDictationStreaming(event, options);
+        else setupDictationCallbacks(this._dictationStreaming, event);
         return { success: true };
       } catch (err) {
         return { success: false, error: err.message };
@@ -3283,9 +3423,20 @@ class IPCHandlers {
       if (!this._dictationStreaming) {
         return { success: true, text: "" };
       }
-      const result = await this._dictationStreaming.disconnect().catch(() => ({ text: "" }));
-      this._dictationStreaming = null;
-      return { success: true, text: result.text || "" };
+
+      dictationStreamingStopPromise = (async () => {
+        const result = await this._dictationStreaming.disconnect().catch(() => ({ text: "" }));
+        this._dictationStreaming = null;
+        dictationStreamingConfigKey = null;
+        return result;
+      })();
+
+      try {
+        const result = await dictationStreamingStopPromise;
+        return { success: true, text: result.text || "" };
+      } finally {
+        dictationStreamingStopPromise = null;
+      }
     });
 
     ipcMain.handle("update-transcription-text", async (_event, id, text, rawText) => {

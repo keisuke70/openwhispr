@@ -2,7 +2,7 @@ const WebSocket = require("ws");
 const debugLogger = require("./debugLogger");
 
 const WEBSOCKET_TIMEOUT_MS = 15000;
-const DISCONNECT_TIMEOUT_MS = 3000;
+const DISCONNECT_TIMEOUT_MS = 5000;
 const SAMPLE_RATE = 24000;
 const COLD_START_BUFFER_MAX = 3 * SAMPLE_RATE * 2; // 3 seconds of 16-bit PCM
 const REPLAY_BUFFER_MAX = 6 * SAMPLE_RATE * 2; // 6 seconds of recent audio
@@ -40,6 +40,7 @@ class OpenAIRealtimeStreaming {
     this.activeConnectPromise = null;
     this.connectionState = "disconnected";
     this.hasSentAudioSinceConnect = false;
+    this.hasDetectedSpeech = false;
   }
 
   getFullTranscript() {
@@ -252,6 +253,7 @@ class OpenAIRealtimeStreaming {
       this.resetReplayBuffer();
       this.reconnectAttempts = 0;
       this.hasSentAudioSinceConnect = false;
+      this.hasDetectedSpeech = false;
     } else if (Array.isArray(replayBuffer) && replayBuffer.length > 0) {
       const queuedDuringReconnect = this.coldStartBuffer;
       this.coldStartBuffer = replayBuffer.map((buf) => Buffer.from(buf));
@@ -457,6 +459,7 @@ class OpenAIRealtimeStreaming {
         case "conversation.item.input_audio_transcription.delta": {
           const delta = event.delta || "";
           if (delta) {
+            this.hasDetectedSpeech = true;
             this.currentPartial += delta;
             this.onPartialTranscript?.(this.currentPartial);
           }
@@ -466,6 +469,7 @@ class OpenAIRealtimeStreaming {
         case "conversation.item.input_audio_transcription.completed": {
           const transcript = (event.transcript || "").trim();
           if (transcript) {
+            this.hasDetectedSpeech = true;
             this.completedSegments.push(transcript);
           }
           this.currentPartial = "";
@@ -485,6 +489,7 @@ class OpenAIRealtimeStreaming {
         }
 
         case "input_audio_buffer.speech_started":
+          this.hasDetectedSpeech = true;
           this.speechStartedAt = Date.now();
           break;
         case "input_audio_buffer.speech_stopped":
@@ -584,7 +589,7 @@ class OpenAIRealtimeStreaming {
     }
 
     if (this.ws.readyState === WebSocket.OPEN) {
-      if (this.audioBytesSent > 0) {
+      if (this.audioBytesSent > 0 && this.hasDetectedSpeech) {
         const prevOnFinal = this.onFinalTranscript;
         const prevOnError = this.onError;
 
@@ -623,6 +628,11 @@ class OpenAIRealtimeStreaming {
             done();
           }
         });
+      } else if (this.audioBytesSent > 0) {
+        debugLogger.debug("OpenAI Realtime disconnect skipping commit wait for silent session", {
+          audioBytesSent: this.audioBytesSent,
+          hasDetectedSpeech: this.hasDetectedSpeech,
+        });
       }
 
       this.ws.close();
@@ -646,6 +656,7 @@ class OpenAIRealtimeStreaming {
     this.isConnected = false;
     this.isConnecting = false;
     this.hasSentAudioSinceConnect = false;
+    this.hasDetectedSpeech = false;
   }
 }
 

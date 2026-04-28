@@ -1,5 +1,5 @@
 {
-  "appId": "com.herotools.openwispr",
+  "appId": "com.herotools.openwhispr",
   "afterPack": "scripts/afterPack.js",
   "productName": "OpenWhispr",
   "protocols": {
@@ -134,6 +134,7 @@
   },
   "win": {
     "target": ["nsis", "portable"],
+    "executableName": "OpenWhispr",
     "icon": "src/assets/icon.ico",
     "extraResources": [
       {
@@ -211,6 +212,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
+    "shortcutName": "OpenWhispr",
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {

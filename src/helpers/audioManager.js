@@ -13,6 +13,11 @@ import {
 
 const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
+const SILENCE_THRESHOLD = 0.002;
+const STREAMING_STOP_FLUSH_TIMEOUT_MS = 1000;
+const STREAMING_STOP_POST_FLUSH_DELAY_MS = 180;
+const STREAMING_STOP_FINALIZE_SETTLE_MS = 500;
+const STREAMING_BACKGROUND_REWARM_DELAY_MS = 2500;
 
 const PLACEHOLDER_KEYS = {
   openai: "your_openai_api_key_here",
@@ -25,6 +30,25 @@ const isValidApiKey = (key, provider = "openai") => {
   const placeholder = PLACEHOLDER_KEYS[provider] || PLACEHOLDER_KEYS.openai;
   return key !== placeholder;
 };
+
+function mergeTranscriptText(baseText = "", incomingText = "") {
+  const base = String(baseText || "").trim();
+  const incoming = String(incomingText || "").trim();
+
+  if (!incoming) return base;
+  if (!base) return incoming;
+  if (base === incoming || base.endsWith(incoming)) return base;
+  if (incoming.startsWith(base)) return incoming;
+
+  const maxOverlap = Math.min(base.length, incoming.length);
+  for (let overlap = maxOverlap; overlap > 0; overlap--) {
+    if (base.slice(-overlap) === incoming.slice(0, overlap)) {
+      return `${base}${incoming.slice(overlap)}`;
+    }
+  }
+
+  return `${base} ${incoming}`;
+}
 
 const STREAMING_PROVIDERS = {
   deepgram: {
@@ -99,6 +123,9 @@ class AudioManager {
     this.streamingPartialText = "";
     this.streamingTextResolve = null;
     this.streamingTextDebounce = null;
+    this.streamingFlushResolve = null;
+    this.streamingFlushTimeout = null;
+    this.streamingWarmupTimeout = null;
     this.cachedMicDeviceId = null;
     this.persistentAudioContext = null;
     this.workletModuleLoaded = false;
@@ -108,6 +135,7 @@ class AudioManager {
     this.streamingFallbackRecorder = null;
     this.streamingFallbackChunks = [];
     this.streamingConnectionState = "disconnected";
+    this.streamingSessionId = 0;
     this.skipReasoning = false;
     this.context = "dictation";
     this.sttConfig = null;
@@ -134,10 +162,11 @@ class PCMStreamingProcessor extends AudioWorkletProcessor {
       if (event.data === "stop") {
         if (this._offset > 0) {
           const partial = this._buffer.slice(0, this._offset);
-          this.port.postMessage(partial.buffer, [partial.buffer]);
+          this.port.postMessage({ type: "audio", buffer: partial.buffer }, [partial.buffer]);
           this._buffer = new Int16Array(BUFFER_SIZE);
           this._offset = 0;
         }
+        this.port.postMessage({ type: "flush-complete" });
         this._stopped = true;
       }
     };
@@ -150,7 +179,7 @@ class PCMStreamingProcessor extends AudioWorkletProcessor {
       const s = Math.max(-1, Math.min(1, input[i]));
       this._buffer[this._offset++] = s < 0 ? s * 0x8000 : s * 0x7fff;
       if (this._offset >= BUFFER_SIZE) {
-        this.port.postMessage(this._buffer.buffer, [this._buffer.buffer]);
+        this.port.postMessage({ type: "audio", buffer: this._buffer.buffer }, [this._buffer.buffer]);
         this._buffer = new Int16Array(BUFFER_SIZE);
         this._offset = 0;
       }
@@ -191,6 +220,40 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onPartialTranscript = onPartialTranscript;
     this.onStreamingCommit = onStreamingCommit;
     this.onAudioLevel = onAudioLevel;
+  }
+
+  resolveStreamingFlush() {
+    clearTimeout(this.streamingFlushTimeout);
+    this.streamingFlushTimeout = null;
+    const resolve = this.streamingFlushResolve;
+    this.streamingFlushResolve = null;
+    resolve?.();
+  }
+
+  cancelScheduledStreamingWarmup() {
+    clearTimeout(this.streamingWarmupTimeout);
+    this.streamingWarmupTimeout = null;
+  }
+
+  scheduleStreamingWarmup() {
+    this.cancelScheduledStreamingWarmup();
+
+    if (!this.shouldUseStreaming()) {
+      return;
+    }
+
+    this.streamingWarmupTimeout = setTimeout(() => {
+      this.streamingWarmupTimeout = null;
+
+      if (this.isRecording || this.isStreaming || this.isProcessing || this.streamingStartInProgress) {
+        logger.debug("Skipping scheduled streaming warmup while recorder is busy", {}, "streaming");
+        return;
+      }
+
+      this.warmupStreamingConnection().catch((e) => {
+        logger.debug("Background re-warm failed", { error: e.message }, "streaming");
+      });
+    }, STREAMING_BACKGROUND_REWARM_DELAY_MS);
   }
 
   startAudioLevelMonitoring(stream) {
@@ -477,7 +540,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const pipelineStart = performance.now();
 
     // Skip transcription if recording was silence
-    const SILENCE_THRESHOLD = 0.002;
     if (this._peakRms != null && this._peakRms < SILENCE_THRESHOLD) {
       logger.info(
         "Silence detected, skipping transcription",
@@ -2071,10 +2133,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   async startStreamingRecording() {
     try {
+      this.cancelScheduledStreamingWarmup();
+
       if (this.streamingStartInProgress) {
         return false;
       }
       this.streamingStartInProgress = true;
+      const sessionId = ++this.streamingSessionId;
 
       if (this.isRecording || this.isStreaming || this.isProcessing) {
         this.streamingStartInProgress = false;
@@ -2137,8 +2202,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const provider = this.getStreamingProvider();
 
       this.streamingProcessor.port.onmessage = (event) => {
-        if (!this.isStreaming) return;
-        provider.send(event.data);
+        if (sessionId !== this.streamingSessionId) return;
+
+        const payload = event.data;
+        if (payload?.type === "flush-complete") {
+          this.resolveStreamingFlush();
+          return;
+        }
+
+        const audioChunk = payload?.type === "audio" ? payload.buffer : payload;
+        if (!audioChunk || !this.isStreaming) return;
+        provider.send(audioChunk);
       };
 
       this.isStreaming = true;
@@ -2154,11 +2228,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.streamingTextDebounce = null;
 
       const partialCleanup = provider.onPartial((text) => {
+        if (sessionId !== this.streamingSessionId) return;
         this.streamingPartialText = text;
         this.onPartialTranscript?.(text);
       });
 
       const finalCleanup = provider.onFinal((text) => {
+        if (sessionId !== this.streamingSessionId) return;
         // text = accumulated final text from streaming provider.
         // Extract just the new segment (delta from previous accumulated final).
         const prevLen = this.streamingFinalText.length;
@@ -2171,6 +2247,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       });
 
       const errorCleanup = provider.onError((error) => {
+        if (sessionId !== this.streamingSessionId) return;
         logger.error("Streaming provider error", { error }, "streaming");
         this.onError?.({
           title: "Streaming Error",
@@ -2189,6 +2266,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       });
 
       const connectionStateCleanup = provider.onConnectionStateChange?.((data) => {
+        if (sessionId !== this.streamingSessionId) return;
         const prevState = this.streamingConnectionState;
         this.streamingConnectionState = data?.state || "disconnected";
 
@@ -2214,6 +2292,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       });
 
       const sessionEndCleanup = provider.onSessionEnd((data) => {
+        if (sessionId !== this.streamingSessionId) return;
         logger.debug("Streaming session ended", data, "streaming");
         if (data.text) {
           this.streamingFinalText = data.text;
@@ -2334,6 +2413,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     if (!this.isStreaming) return false;
+    const sessionId = this.streamingSessionId;
+    this.isProcessing = true;
+    const peakRmsAtStop = this._peakRms;
+    const silentSession = peakRmsAtStop != null && peakRmsAtStop < SILENCE_THRESHOLD;
 
     const durationSeconds = this.recordingStartTime
       ? (Date.now() - this.recordingStartTime) / 1000
@@ -2350,9 +2433,24 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // 2. Stop the processor — it flushes its remaining buffer on "stop".
     //    Keep isStreaming TRUE so the port.onmessage handler forwards the flush to WebSocket.
     if (this.streamingProcessor) {
+      const processor = this.streamingProcessor;
+      const flushPromise = new Promise((resolve) => {
+        this.resolveStreamingFlush();
+        this.streamingFlushResolve = resolve;
+        this.streamingFlushTimeout = setTimeout(() => {
+          logger.debug("Streaming processor flush timeout, continuing stop", {}, "streaming");
+          this.resolveStreamingFlush();
+        }, STREAMING_STOP_FLUSH_TIMEOUT_MS);
+      });
+
       try {
-        this.streamingProcessor.port.postMessage("stop");
-        this.streamingProcessor.disconnect();
+        processor.port.postMessage("stop");
+      } catch (e) {
+        this.resolveStreamingFlush();
+      }
+      await flushPromise;
+      try {
+        processor.disconnect();
       } catch (e) {
         // Ignore
       }
@@ -2393,14 +2491,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     // 3. Wait for flushed buffer to travel: port -> main thread -> IPC -> WebSocket -> server.
     //    Then mark streaming done so no further audio is forwarded.
-    await new Promise((resolve) => setTimeout(resolve, 120));
+    await new Promise((resolve) => setTimeout(resolve, STREAMING_STOP_POST_FLUSH_DELAY_MS));
     this.isStreaming = false;
 
     // 4. Finalize tells the provider to process any buffered audio and send final results.
     //    Wait briefly so the server sends back the finalized transcript before disconnect.
     const provider = this.getStreamingProvider();
     provider.finalize?.();
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, STREAMING_STOP_FINALIZE_SETTLE_MS));
     const tForceEndpoint = performance.now();
 
     const stopResult = await provider.stop().catch((e) => {
@@ -2411,15 +2509,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     finalText = this.streamingFinalText || "";
 
-    if (!finalText && this.streamingPartialText) {
-      finalText = this.streamingPartialText;
-      logger.debug("Using partial text as fallback", { textLength: finalText.length }, "streaming");
+    const mergedWithStopResult = mergeTranscriptText(finalText, stopResult?.text || "");
+    if (mergedWithStopResult !== finalText) {
+      finalText = mergedWithStopResult;
+      logger.debug(
+        "Merged disconnect result text into streaming transcript",
+        { textLength: finalText.length },
+        "streaming"
+      );
     }
 
-    if (!finalText && stopResult?.text) {
-      finalText = stopResult.text;
+    const mergedWithPartial = mergeTranscriptText(finalText, this.streamingPartialText || "");
+    if (mergedWithPartial !== finalText) {
+      finalText = mergedWithPartial;
       logger.debug(
-        "Using disconnect result text as fallback",
+        "Merged partial text into streaming transcript",
         { textLength: finalText.length },
         "streaming"
       );
@@ -2431,6 +2535,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       "Streaming stop timing",
       {
         durationSeconds,
+        silentSession,
+        peakRms: peakRmsAtStop != null ? Number(peakRmsAtStop.toFixed(4)) : null,
         audioCleanupMs: Math.round(tAudioCleanup - t0),
         flushWaitMs: Math.round(tForceEndpoint - tAudioCleanup),
         terminateRoundTripMs: Math.round(tTerminate - tForceEndpoint),
@@ -2522,7 +2628,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     // If streaming produced no text, fall back to batch transcription
     // (batch fallback records usage server-side via /api/transcribe)
     let usedBatchFallback = false;
-    if (!finalText && durationSeconds > 2 && fallbackBlob?.size > 0) {
+    if (!finalText && silentSession) {
+      logger.info(
+        "Streaming silence detected, skipping batch fallback",
+        {
+          durationSeconds,
+          peakRms: peakRmsAtStop != null ? Number(peakRmsAtStop.toFixed(4)) : null,
+          blobSize: fallbackBlob?.size || 0,
+        },
+        "streaming"
+      );
+    } else if (!finalText && durationSeconds > 2 && fallbackBlob?.size > 0) {
       logger.info(
         "Streaming produced no text, falling back to batch transcription",
         { durationSeconds, blobSize: fallbackBlob.size },
@@ -2556,7 +2672,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
     }
 
-    if (finalText) {
+    if (finalText && sessionId === this.streamingSessionId) {
       const tBeforePaste = performance.now();
       const clientTotalMs = Math.round(tBeforePaste - t0);
       this.lastAudioMetadata = {
@@ -2614,7 +2730,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         },
         "streaming"
       );
-    } else {
+    } else if (sessionId === this.streamingSessionId) {
       // Silence: still fire callback so media playback resumes.
       this.onTranscriptionComplete?.({ success: true, text: "" });
     }
@@ -2622,11 +2738,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.isProcessing = false;
     this.onStateChange?.({ isRecording: false, isProcessing: false, isStreaming: false });
 
-    if (this.shouldUseStreaming()) {
-      this.warmupStreamingConnection().catch((e) => {
-        logger.debug("Background re-warm failed", { error: e.message }, "streaming");
-      });
-    }
+    this.scheduleStreamingWarmup();
 
     return true;
   }
@@ -2685,6 +2797,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.streamingTextResolve = null;
     clearTimeout(this.streamingTextDebounce);
     this.streamingTextDebounce = null;
+    this.resolveStreamingFlush();
+    this.cancelScheduledStreamingWarmup();
   }
 
   async cleanupStreaming() {

@@ -112,6 +112,7 @@ export default function PersonalNotesView({
 
   const {
     isRecording: isTranscribing,
+    audioLevel,
     transcript: realtimeTranscript,
     segments: realtimeSegments,
     micPartial: micPartial,
@@ -870,6 +871,7 @@ export default function PersonalNotesView({
               isSaving={isSaving}
               isRecording={isTranscribing}
               isProcessing={false}
+              audioLevel={audioLevel}
               onStartRecording={startRecording}
               onStopRecording={stopRecording}
               onExportNote={handleExportNote}

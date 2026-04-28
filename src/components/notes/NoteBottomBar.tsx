@@ -2,12 +2,12 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Mic, ArrowUp, Square, Loader2 } from "lucide-react";
 import { cn } from "../lib/utils";
-
-const BAR_COUNT = 5;
+import LiveAudioWaveform from "../audio/LiveAudioWaveform";
 
 interface NoteBottomBarProps {
   isRecording: boolean;
   isProcessing: boolean;
+  audioLevel?: number;
   onStartRecording: () => void;
   onStopRecording: () => void;
   onAskSubmit: (text: string) => void;
@@ -20,6 +20,7 @@ interface NoteBottomBarProps {
 export default function NoteBottomBar({
   isRecording,
   isProcessing,
+  audioLevel = 0,
   onStartRecording,
   onStopRecording,
   onAskSubmit,
@@ -112,19 +113,12 @@ export default function NoteBottomBar({
                 "hover:bg-primary/10 dark:hover:bg-primary/15"
               )}
             >
-              <div className="flex items-end gap-0.5 h-3.5">
-                {Array.from({ length: BAR_COUNT }, (_, i) => (
-                  <div
-                    key={i}
-                    className="w-0.5 rounded-full bg-primary/60 dark:bg-primary/70 origin-bottom"
-                    style={{
-                      height: "100%",
-                      animation: `waveform-bar ${0.5 + i * 0.07}s ease-in-out infinite`,
-                      animationDelay: `${i * 0.04}s`,
-                    }}
-                  />
-                ))}
-              </div>
+              <LiveAudioWaveform
+                audioLevel={audioLevel}
+                bars={5}
+                className="h-3.5 w-7"
+                barClassName="bg-primary/65 dark:bg-primary/75"
+              />
               <span className="text-[11px] font-medium tabular-nums text-primary/60 dark:text-primary/70">
                 {minutes}:{seconds}
               </span>
